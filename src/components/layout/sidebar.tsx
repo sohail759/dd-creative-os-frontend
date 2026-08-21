@@ -11,9 +11,11 @@ import {
   Upload,
   Bot,
   Brain,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { signOut, type AuthUser } from "@/lib/api/auth";
 
 const BRANDS = [
   { slug: "numy", label: "NUMY" },
@@ -119,7 +121,62 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function Sidebar() {
+function UserFooter({ user }: { user: AuthUser | null }) {
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      // Full navigation: clears the cookie server-side and all client state.
+      window.location.assign("/sign-in");
+    }
+  }
+
+  if (!user) {
+    return (
+      <div className="border-t border-border p-4">
+        <p className="text-xs text-faint">
+          Notion-Fetching · Generation UI
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-border p-4">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-dim text-xs font-bold uppercase text-accent">
+          {(user.name || user.email).slice(0, 2)}
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-xs font-semibold text-foreground">
+            {user.name || user.email}
+          </p>
+          {user.name && (
+            <p className="truncate text-[10px] text-faint">{user.email}</p>
+          )}
+        </div>
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className={cn(
+            "shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-white/5 hover:text-foreground",
+            signingOut && "cursor-wait opacity-60",
+          )}
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function Sidebar({ user }: { user?: AuthUser | null }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -140,11 +197,7 @@ export function Sidebar() {
           <BrandSwitcher />
           <NavList />
         </div>
-        <div className="border-t border-border p-4">
-          <p className="text-xs text-faint">
-            Notion-Fetching · Generation UI
-          </p>
-        </div>
+        <UserFooter user={user ?? null} />
       </aside>
 
       {open && (
@@ -168,6 +221,7 @@ export function Sidebar() {
               <BrandSwitcher onNavigate={() => setOpen(false)} />
               <NavList onNavigate={() => setOpen(false)} />
             </div>
+            <UserFooter user={user ?? null} />
           </aside>
         </div>
       )}

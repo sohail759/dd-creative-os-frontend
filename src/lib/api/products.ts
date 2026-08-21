@@ -52,7 +52,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (adminToken) headers["X-Admin-Token"] = adminToken;
   }
 
-  const res = await fetch(apiUrl(path), { ...init, headers });
+  // The HttpOnly session cookie is the authentication mechanism; it must ride
+  // along on every cross-origin API call.
+  const res = await fetch(apiUrl(path), { ...init, headers, credentials: "include" });
+  if (res.status === 401 && !path.startsWith("/v1/auth")) {
+    // Session missing/expired/revoked: hard-redirect to sign-in. A full
+    // navigation also clears any cached client state.
+    if (typeof window !== "undefined") {
+      const current = `${window.location.pathname}${window.location.search}`;
+      const next = encodeURIComponent(current);
+      window.location.assign(`/sign-in?next=${next}`);
+    }
+    throw new Error("Not authenticated");
+  }
   if (!res.ok) {
     let detail = `Request failed with ${res.status}`;
     try {
