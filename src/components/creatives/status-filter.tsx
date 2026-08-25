@@ -35,8 +35,8 @@ export function StatusFilter({
                 : "border-border bg-surface text-muted hover:border-border-strong hover:text-foreground",
             )}
           >
-            {filter.label}
-            {count > 0 && (
+            <span>{filter.label}</span>
+            {counts !== undefined && count > 0 && (
               <span
                 className={cn(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",

@@ -23,18 +23,18 @@ export default function CreativesPage() {
   const currentBrand = searchParams.get("brand") ?? "numy";
   const currentPhase = searchParams.get("phase") ?? "";
 
-  const [filter, setFilter] = useState<StatusFilterValue>(() => {
-    if (typeof window !== "undefined") {
-      const status = new URLSearchParams(window.location.search).get("status");
-      if (
-        status &&
-        (status === "all" || (CREATIVE_STATUSES as readonly string[]).includes(status))
-      ) {
-        return status as StatusFilterValue;
-      }
+  const initialFilter = (() => {
+    const status = searchParams.get("status");
+    if (
+      status &&
+      (status === "all" || (CREATIVE_STATUSES as readonly string[]).includes(status))
+    ) {
+      return status as StatusFilterValue;
     }
     return "in_progress";
-  });
+  })();
+
+  const [filter, setFilter] = useState<StatusFilterValue>(initialFilter);
   const [phaseFilter, setPhaseFilter] = useState(currentPhase);
 
   const {
