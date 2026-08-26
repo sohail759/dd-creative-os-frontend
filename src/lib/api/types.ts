@@ -170,6 +170,7 @@ export interface FrameAssetsResponse {
 export interface GenerateOptions {
   angle?: string | null;
   language?: string | null;
+  force?: boolean;
 }
 
 /** Response of POST /v1/products/{id}/generate (job enqueued). */

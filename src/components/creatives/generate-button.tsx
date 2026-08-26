@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 /**
  * Status-aware generation control.
  *  - generation in_progress -> progressive "Generating…" state
- *  - no copy yet (not_started / revision / checkpoint) -> trigger button
+ *  - no copy yet -> trigger button
  *  - generation failed -> "Try Again"
- *  - generation completed -> no control (copy is displayed separately)
+ *  - generation completed + has copy -> "Regenerate" button (force=true)
  */
 export function GenerateButton({
   creative,
@@ -29,8 +29,6 @@ export function GenerateButton({
     generation === "in_progress" ? Date.now() : undefined,
   );
 
-  // If the creative arrives already generating, render the progressive steps
-  // immediately.
   const initialRef = useRef(generation === "in_progress");
   useEffect(() => {
     if (initialRef.current) {
@@ -39,17 +37,11 @@ export function GenerateButton({
     }
   }, []);
 
-  // UI triggers are available for any concept regardless of phase/status; the
-  // Write phase / In progress gate applies only to the webhook automation.
-  if (generation === "completed" && hasCopy) return null;
-
-  // While the trigger request is in flight (and before the backend reflects
-  // `in_progress` on the next poll), show the progressive pipeline so the user
-  // gets immediate feedback instead of just a toast.
   const pendingForThis =
     mutation.isPending && mutation.variables?.id === creative.id;
   const generating = generation === "in_progress" || pendingForThis;
 
+  // While generating, show the progressive pipeline or "Regenerating..."
   if (generating) {
     return (
       <div
@@ -58,10 +50,10 @@ export function GenerateButton({
           className,
         )}
       >
-        {hasCopy ? (
+        {(hasCopy || pendingForThis) ? (
           <p className="flex items-center gap-2 text-sm font-medium text-foreground">
             <RefreshCw className="h-4 w-4 animate-spin text-accent" />
-            Updating creative...
+            Regenerating creative...
           </p>
         ) : (
           <GenerationSteps startedAt={startedAt} />
@@ -78,16 +70,28 @@ export function GenerateButton({
         e.stopPropagation();
         e.preventDefault();
         setStartedAt(Date.now());
-        mutation.mutate({ id: creative.id });
+        mutation.mutate({ id: creative.id, options: { force: true } });
       }}
       disabled={mutation.isPending && mutation.variables?.id === creative.id}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        hasCopy
+          ? "border border-accent/30 bg-accent-dim text-accent hover:bg-accent/20"
+          : "bg-accent text-black hover:bg-accent-hover",
         className,
       )}
     >
-      <Sparkles className="h-4 w-4" />
-      {isFailed ? "Try Again" : "Generate Copy"}
+      {hasCopy ? (
+        <>
+          <RefreshCw className="h-4 w-4" />
+          Regenerate
+        </>
+      ) : (
+        <>
+          <Sparkles className="h-4 w-4" />
+          {isFailed ? "Try Again" : "Generate Copy"}
+        </>
+      )}
     </button>
   );
 }

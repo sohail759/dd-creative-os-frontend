@@ -174,8 +174,11 @@ export const httpApi: ApiClient = {
     const body: Record<string, unknown> = {};
     if (options?.angle) body.angle = options.angle;
     if (options?.language) body.language = options.language;
+    const params = new URLSearchParams();
+    if (options?.force) params.set("force", "true");
+    const qs = params.toString();
     return request<GenerationResponse>(
-      `/v1/products/${encodeURIComponent(id)}/generate`,
+      `/v1/products/${encodeURIComponent(id)}/generate${qs ? `?${qs}` : ""}`,
       {
         method: "POST",
         body: JSON.stringify(body),

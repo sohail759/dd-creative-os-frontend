@@ -192,44 +192,46 @@ export function CreativeDetailView({
             <h2 className="text-sm font-semibold uppercase tracking-wider text-faint">
               Generated Copy
             </h2>
-            <div className="flex items-center gap-3">
-              {data.generationStatus === "in_progress" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-accent">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Updating…
-                </span>
+            {hasCopy &&
+              data.generationStatus !== "in_progress" &&
+              !editing && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  disabled={updateCopy.isPending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit copy
+                </button>
               )}
-              {hasCopy &&
-                data.generationStatus !== "in_progress" &&
-                !editing && (
-                  <button
-                    type="button"
-                    onClick={() => setEditing(true)}
-                    disabled={updateCopy.isPending}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit copy
-                  </button>
-                )}
-            </div>
           </div>
 
-          {!hasCopy ? (
-            <div className="mt-4">
+          <div className="mt-4">
+            {!hasCopy ? (
               <div className="rounded-2xl border border-border bg-panel p-6">
                 <GenerateButton creative={data} />
               </div>
-            </div>
-          ) : (
-            <EditableCopy
-              key={`${data.id}-${data.generationUpdatedAt ?? data.generatedAt ?? "v"}`}
-              data={data}
-              editing={editing}
-              onSetEditing={setEditing}
-              updateCopy={updateCopy}
-            />
-          )}
+            ) : data.generationStatus === "in_progress" ? (
+              <div className="rounded-2xl border border-accent/20 bg-accent-dim/40 p-6">
+                <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                  Regenerating creative...
+                </p>
+              </div>
+            ) : (
+              <>
+                <GenerateButton creative={data} className="mb-4" />
+                <EditableCopy
+                  key={`${data.id}-${data.generationUpdatedAt ?? data.generatedAt ?? "v"}`}
+                  data={data}
+                  editing={editing}
+                  onSetEditing={setEditing}
+                  updateCopy={updateCopy}
+                />
+              </>
+            )}
+          </div>
         </section>
       )}
     </div>

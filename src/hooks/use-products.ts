@@ -35,12 +35,23 @@ function pinGenerating(c: Creative): Creative {
   const updatedAt = c.generationUpdatedAt
     ? Date.parse(c.generationUpdatedAt) || 0
     : 0;
+  const generatedAt = c.generatedAt ? Date.parse(c.generatedAt) || 0 : 0;
   const st = c.generationStatus;
 
   // Real states (worker picked it up / finished) end the pin.
-  if (st === "in_progress" || st === "completed") {
+  if (st === "in_progress") {
     optimisticGenerations.delete(c.id);
     return c;
+  }
+  // Completed: only clear the pin if the backend timestamp is newer than our trigger.
+  // Otherwise the backend still has stale "completed" data from the previous generation.
+  if (st === "completed") {
+    const latestBackendUpdate = Math.max(updatedAt, generatedAt);
+    if (latestBackendUpdate >= triggeredAt) {
+      optimisticGenerations.delete(c.id);
+      return c;
+    }
+    // Stale completed state — keep showing optimistic loading.
   }
   // A failure written to the doc *after* we triggered is a genuine failure;
   // an older failure is just the stale state still sitting in Mongo.
