@@ -348,6 +348,48 @@ export interface IntelligenceBlock {
   description: string;
 }
 
+export interface AnalystClassification {
+  label: string;
+  reason?: string;
+  thresholds_used?: Record<string, unknown>;
+}
+
+export interface AnalystValueBlocks {
+  ok?: boolean;
+  blocked_reason?: string;
+  card_count?: number;
+  cards?: Array<Record<string, unknown>>;
+}
+
+export interface AnalystLearning {
+  verdict?: string;
+  next_tests?: string[];
+  why_it_worked?: string;
+  weak_point?: string;
+  benchmark_comparison?: string;
+  hypothesis_closure?: string;
+  feedback_loop?: string;
+}
+
+export interface AnalystPayload {
+  run_id?: string;
+  creative_id?: string;
+  creative_name?: string;
+  notion_page_id?: string;
+  date_preset?: string;
+  since?: string;
+  until?: string;
+  decided?: boolean;
+  blocked_code?: string;
+  skipped_reason?: string;
+  updated_in_notion?: boolean;
+  matching_method?: string;
+  classification?: AnalystClassification;
+  value_blocks?: AnalystValueBlocks | null;
+  learnings?: AnalystLearning[];
+  notion_properties_written?: Record<string, unknown>;
+}
+
 export interface IntelligenceAd {
   id: string;
   name: string;
@@ -356,6 +398,7 @@ export interface IntelligenceAd {
   adset_id: string;
   creative_id: string;
   campaign_name?: string | null;
+  analyst?: AnalystPayload | null;
 }
 
 export interface IntelligenceAdList {
@@ -371,6 +414,7 @@ export interface IntelligenceAnalytics {
   ad_id: string | null;
   kpis: AnalyticsKpis;
   insights: AnalyticsInsight[];
+  analyst?: AnalystPayload | null;
   fetched_at?: string | null;
 }
 
@@ -385,4 +429,76 @@ export interface IntelligenceDetail {
   ad: IntelligenceAd;
   analytics: IntelligenceAnalytics | null;
   intelligence: IntelligenceData | null;
+}
+
+// --------------------------------------------------------------------------
+// Intelligence concept grouping
+// --------------------------------------------------------------------------
+
+/** A concept (e.g. "B321 C1") with all its ad variants and aggregated KPIs. */
+export interface ConceptGroup {
+  concept_name: string;
+  ads: IntelligenceAd[];
+  ad_count: number;
+  kpis: AnalyticsKpis;
+}
+
+export interface ConceptListResponse {
+  concepts: ConceptGroup[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface ConceptDetail {
+  concept_name: string;
+  ads: IntelligenceAd[];
+  ad_count: number;
+  kpis: AnalyticsKpis;
+  insights: AnalyticsInsight[];
+  analyst_by_ad?: Record<string, AnalystPayload>;
+  last_fetched_at?: string | null;
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+/** Result of running the Analyst Agent for one concept. */
+export interface ConceptRunResult {
+  brand: string;
+  ok: boolean;
+  status: string;
+  message: string;
+  run_id: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  analyzed_creatives?: Array<Record<string, unknown>>;
+  audit?: {
+    passed: boolean;
+    checks: Array<{ key: string; label: string; ok: boolean; detail: string }>;
+  } | null;
+  hard_stops: string[];
+  gated: boolean;
+  gate_message: string;
+  receipt_path: string;
+  report_path: string;
+  coverage: Record<string, unknown>;
+  date_preset: string;
+  since: string;
+  until: string;
+  creative_name: string;
+}
+
+/** Immediate response from dispatching a concept analysis to Celery. */
+export interface ConceptRunDispatch {
+  task_id: string;
+  status: string;
+  started_at?: string | null;
+  brand: string;
+  concept_name: string;
+  date_preset: string;
+  since: string;
+  until: string;
 }

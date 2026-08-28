@@ -72,15 +72,22 @@ function pinGenerating(c: Creative): Creative {
  * Paginated products list, filtered server-side by `status`, `brand`, and `phase`.
  * `data.pages` accumulates as the user hits "Load more".
  */
-export function useProducts(status?: string, brand?: string, phase?: string) {
+export function useProducts(status?: string, brand?: string, phase?: string, search?: string) {
+  const searchTerm = search?.trim();
+  const isSearching = Boolean(searchTerm);
+
   return useInfiniteQuery({
-    queryKey: ["products", status ?? "all", brand ?? "all", phase ?? "all"],
+    queryKey: ["products", status ?? "all", brand ?? "all", phase ?? "all", searchTerm ?? ""],
     initialPageParam: 0,
-    queryFn: async ({ pageParam }) =>
-      (await api.getProducts(status, PRODUCTS_PAGE_SIZE, pageParam, brand, phase)).map(
-        pinGenerating,
-      ),
+    queryFn: async ({ pageParam }) => {
+      const limit = isSearching ? undefined : PRODUCTS_PAGE_SIZE;
+      const offset = isSearching ? undefined : pageParam;
+      return (
+        await api.getProducts(status, limit, offset, brand, phase, searchTerm)
+      ).map(pinGenerating);
+    },
     getNextPageParam: (lastPage, pages) => {
+      if (isSearching) return undefined;
       if (lastPage.length < PRODUCTS_PAGE_SIZE) return undefined;
       return pages.length * PRODUCTS_PAGE_SIZE;
     },

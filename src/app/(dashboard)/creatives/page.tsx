@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, RefreshCw, Filter } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { LayoutGrid, RefreshCw, Filter, Search } from "lucide-react";
 import { CREATIVE_STATUSES } from "@/lib/api/types";
 import {
   useProductCounts,
@@ -18,10 +18,10 @@ import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export default function CreativesPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const currentBrand = searchParams.get("brand") ?? "numy";
   const currentPhase = searchParams.get("phase") ?? "";
+  const currentSearch = searchParams.get("q") ?? "";
 
   const initialFilter = (() => {
     const status = searchParams.get("status");
@@ -36,6 +36,7 @@ export default function CreativesPage() {
 
   const [filter, setFilter] = useState<StatusFilterValue>(initialFilter);
   const [phaseFilter, setPhaseFilter] = useState(currentPhase);
+  const [searchFilter, setSearchFilter] = useState(currentSearch);
 
   const {
     data,
@@ -48,9 +49,10 @@ export default function CreativesPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useProducts(
-    filter === "all" ? undefined : filter,
+    searchFilter ? undefined : filter === "all" ? undefined : filter,
     currentBrand,
-    phaseFilter || undefined
+    searchFilter ? undefined : phaseFilter || undefined,
+    searchFilter || undefined
   );
   const { data: counts } = useProductCounts(currentBrand, phaseFilter || undefined);
   const autoTrigger = useGenerateProduct();
@@ -58,21 +60,32 @@ export default function CreativesPage() {
 
   function handleFilterChange(value: StatusFilterValue) {
     setFilter(value);
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     params.set("status", value);
     if (phaseFilter) params.set("phase", phaseFilter);
-    router.replace(`/creatives?${params.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
   }
 
   function handlePhaseChange(value: string) {
     setPhaseFilter(value);
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     if (value) {
       params.set("phase", value);
     } else {
       params.delete("phase");
     }
-    router.replace(`/creatives?${params.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+  }
+
+  function handleSearchChange(value: string) {
+    setSearchFilter(value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set("q", value);
+    } else {
+      params.delete("q");
+    }
+    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
   }
 
   // First 100 items of the current filter, most recently edited first.
@@ -87,6 +100,8 @@ export default function CreativesPage() {
     const pending =
       items?.filter(
         (p) =>
+          (p.parentItem?.length ?? 0) > 0 &&
+          p.phase === "Write" &&
           p.status === "in_progress" &&
           (p.generationStatus ?? "idle") === "idle" &&
           p.headlines.length === 0 &&
@@ -94,7 +109,7 @@ export default function CreativesPage() {
       ) ?? [];
     for (const p of pending) {
       triggeredRef.current.add(p.id);
-      autoTrigger.mutate({ id: p.id });
+      autoTrigger.mutate({ id: p.id, showErrorToast: false });
     }
   }, [items, autoTrigger]);
 
@@ -124,26 +139,47 @@ export default function CreativesPage() {
       <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <StatusFilter value={filter} onChange={handleFilterChange} counts={counts} />
 
-        {/* Phase filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted" />
-          <select
-            value={phaseFilter}
-            onChange={(e) => handlePhaseChange(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground"
-          >
-            <option value="">All Phases</option>
-            <option value="Testing">Testing</option>
-            <option value="Active">Active</option>
-            <option value="Launch">Launch</option>
-            <option value="Editing">Editing</option>
-            <option value="Iterate">Iterate</option>
-            <option value="Write">Write</option>
-            <option value="Archived">Archived</option>
-            <option value="Upload">Upload</option>
-            <option value="Filming">Filming</option>
-            <option value="Not started">Not started</option>
-          </select>
+        {/* Search + phase filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3">
+            <Search className="h-4 w-4 text-muted" />
+            <input
+              value={searchFilter}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search creatives…"
+              className="w-40 bg-transparent text-sm text-foreground placeholder:text-faint focus:outline-none sm:w-52"
+            />
+            {searchFilter && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="text-faint transition-colors hover:text-muted"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </label>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted" />
+            <select
+              value={phaseFilter}
+              onChange={(e) => handlePhaseChange(e.target.value)}
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground"
+            >
+              <option value="">All Phases</option>
+              <option value="Testing">Testing</option>
+              <option value="Active">Active</option>
+              <option value="Launch">Launch</option>
+              <option value="Editing">Editing</option>
+              <option value="Iterate">Iterate</option>
+              <option value="Write">Write</option>
+              <option value="Archived">Archived</option>
+              <option value="Upload">Upload</option>
+              <option value="Filming">Filming</option>
+              <option value="Not started">Not started</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -172,14 +208,18 @@ export default function CreativesPage() {
           <EmptyState
             icon={<LayoutGrid className="h-6 w-6" />}
             title={
-              counts?.all === 0
-                ? "No creatives found"
-                : `No ${filter === "all" ? "creatives" : filter.replace("_", " ")} yet`
+              searchFilter
+                ? "No creatives match your search"
+                : counts?.all === 0
+                  ? "No creatives found"
+                  : `No ${filter === "all" ? "creatives" : filter.replace("_", " ")} yet`
             }
             description={
-              counts?.all === 0
-                ? "Connect the backend or switch the filter to see your products."
-                : "Try a different status filter."
+              searchFilter
+                ? 'Try a different search term or clear the search box.'
+                : counts?.all === 0
+                  ? "Connect the backend or switch the filter to see your products."
+                  : "Try a different status filter."
             }
           />
         ) : (

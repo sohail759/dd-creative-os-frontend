@@ -4,6 +4,7 @@ import type {
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
+  ConceptGroup,
   Creative,
   FetchAnalyticsResponse,
   FrameAssetsResponse,
@@ -188,18 +189,29 @@ function bootstrap() {
 bootstrap();
 
 export const mockApi: ApiClient = {
-  async getProducts(status, limit = 100, offset = 0, brand, phase) {
+  async getProducts(status, limit, offset, brand, phase, search) {
     await delay(150);
     const list = [...store.values()];
     const topLevel = list.filter((p) => (p.parentItem?.length ?? 0) === 0);
     const brandFiltered = brand ? topLevel.filter((p) => p.brand === brand) : topLevel;
     const phaseFiltered = phase ? brandFiltered.filter((p) => p.phase === phase) : brandFiltered;
-    const filtered = status ? phaseFiltered.filter((p) => p.status === status) : phaseFiltered;
+    const searchFiltered = search
+      ? phaseFiltered.filter((p) =>
+          [p.name, p.brand, p.product]
+            .join(" ")
+            .toLowerCase()
+            .includes(search.toLowerCase())
+        )
+      : phaseFiltered;
+    const filtered = status ? searchFiltered.filter((p) => p.status === status) : searchFiltered;
     const withCounts = filtered.map((p) => ({
       ...p,
       conceptCount: childrenOf(p.id).length,
     }));
-    return sorted(withCounts).slice(offset, offset + limit);
+    const start = offset ?? 0;
+    const all = sorted(withCounts);
+    if (limit == null) return all.slice(start);
+    return all.slice(start, start + limit);
   },
 
   async getProductCounts(brand, phase) {
@@ -570,6 +582,89 @@ export const mockApi: ApiClient = {
     };
   },
 
+  async getIntelligenceConcepts(_brand?, search?, limit?, offset?) {
+    await delay(150);
+    let all = MOCK_INTELLIGENCE_ADS;
+    if (search) {
+      const q = search.toLowerCase();
+      all = all.filter((a) => a.name.toLowerCase().includes(q));
+    }
+    const groups = new Map<string, ConceptGroup>();
+    for (const ad of all) {
+      const concept = ad.name.replace(/\s*-\s*(ENG|DE|v\d+).*$/i, "").toLowerCase();
+      const key = concept.split(" ").slice(0, 2).join(" ");
+      if (!groups.has(key)) {
+        groups.set(key, { concept_name: key, ads: [], ad_count: 0, kpis: { ...MOCK_ANALYTICS.kpis } });
+      }
+      groups.get(key)!.ads.push(ad);
+      groups.get(key)!.ad_count += 1;
+    }
+    let concepts = [...groups.values()].sort((a, b) => a.concept_name.localeCompare(b.concept_name));
+    const total = concepts.length;
+    concepts = concepts.slice(offset ?? 0, (offset ?? 0) + (limit ?? 50));
+    return { concepts, total, limit: limit ?? 50, offset: offset ?? 0, has_more: (offset ?? 0) + (limit ?? 50) < total };
+  },
+
+  async getIntelligenceConcept(conceptName) {
+    await delay(100);
+    const ads = MOCK_INTELLIGENCE_ADS.filter((a) =>
+      a.name.toLowerCase().includes(conceptName.toLowerCase())
+    );
+    return {
+      concept_name: conceptName,
+      ads: ads.length ? ads : [MOCK_INTELLIGENCE_ADS[0]],
+      ad_count: Math.max(ads.length, 1),
+      kpis: { ...MOCK_ANALYTICS.kpis },
+      insights: [],
+      last_fetched_at: MOCK_ANALYTICS.fetched_at,
+      total: Math.max(ads.length, 1),
+      limit: 200,
+      offset: 0,
+      has_more: false,
+    };
+  },
+
+  async runIntelligenceConcept(conceptName) {
+    await delay(1200);
+    return {
+      task_id: `mock-task-${Date.now()}`,
+      status: "queued",
+      started_at: new Date().toISOString(),
+      brand: "numy",
+      concept_name: conceptName,
+      date_preset: "last_30d",
+      since: "",
+      until: "",
+    };
+  },
+
+  async getIntelligenceConceptRun(_taskId, conceptName) {
+    await delay(1200);
+    const name = conceptName ?? "";
+    return {
+      task_id: _taskId,
+      brand: "numy",
+      ok: true,
+      status: "success",
+      message: `Weekly analysis complete for ${name}`,
+      run_id: `mock-${Date.now()}`,
+      started_at: new Date(Date.now() - 1000).toISOString(),
+      finished_at: new Date().toISOString(),
+      analyzed_creatives: [],
+      audit: { passed: true, checks: [] },
+      hard_stops: [],
+      gated: false,
+      gate_message: "",
+      receipt_path: "",
+      report_path: "",
+      coverage: {},
+      date_preset: "last_30d",
+      since: "",
+      until: "",
+      creative_name: name,
+    };
+  },
+
   async getIntelligenceAd(adId) {
     await delay(100);
     const ad = MOCK_INTELLIGENCE_ADS.find((a) => a.id === adId) ?? MOCK_INTELLIGENCE_ADS[0];
@@ -606,11 +701,38 @@ const DEFAULT_COPYWRITER_PROMPT =
 const MOCK_INTELLIGENCE_ADS: IntelligenceAdList["ads"] = [
   {
     id: "2323812345678200504",
-    name: "Hero Product Demo - Hook A",
+    name: "B321 C1 - ENG",
     status: "ACTIVE",
     campaign_id: "120330000000000001",
     adset_id: "120330000000000002",
     creative_id: "creative_mock_001",
+    campaign_name: "Q3 Acquisition",
+  },
+  {
+    id: "2323812345678200505",
+    name: "B321 C1 - DE",
+    status: "ACTIVE",
+    campaign_id: "120330000000000001",
+    adset_id: "120330000000000003",
+    creative_id: "creative_mock_001",
+    campaign_name: "Q3 Acquisition",
+  },
+  {
+    id: "2323812345678200506",
+    name: "B103 C2 - ENG",
+    status: "PAUSED",
+    campaign_id: "120330000000000002",
+    adset_id: "120330000000000004",
+    creative_id: "creative_mock_002",
+    campaign_name: "Retargeting",
+  },
+  {
+    id: "2323812345678200507",
+    name: "Hero Product Demo - Hook A",
+    status: "ACTIVE",
+    campaign_id: "120330000000000001",
+    adset_id: "120330000000000002",
+    creative_id: "creative_mock_003",
     campaign_name: "Q3 Acquisition",
   },
 ];

@@ -3,6 +3,10 @@ import type {
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
+  ConceptDetail,
+  ConceptListResponse,
+  ConceptRunResult,
+  ConceptRunDispatch,
   Creative,
   CreativeCounts,
   CreativeCopyUpdate,
@@ -31,6 +35,7 @@ export interface ApiClient {
     offset?: number,
     brand?: string,
     phase?: string,
+    search?: string,
   ): Promise<Creative[]>;
   getProduct(id: string): Promise<Creative>;
   generateProduct(id: string, options?: GenerateOptions): Promise<GenerationResponse>;
@@ -56,6 +61,29 @@ export interface ApiClient {
   getAgents(): Promise<AgentListResponse>;
   getAgent(id: string): Promise<AgentConfig>;
   updateAgent(id: string, payload: AgentConfigUpdate): Promise<AgentConfig>;
+
+  getIntelligenceConcepts(
+    brand?: string,
+    search?: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<ConceptListResponse>;
+  getIntelligenceConcept(conceptName: string, brand?: string): Promise<ConceptDetail>;
+  runIntelligenceConcept(
+    conceptName: string,
+    brand?: string,
+    datePreset?: string,
+    since?: string,
+    until?: string,
+  ): Promise<ConceptRunDispatch>;
+  getIntelligenceConceptRun(
+    taskId: string,
+    conceptName?: string,
+    brand?: string,
+    datePreset?: string,
+    since?: string,
+    until?: string,
+  ): Promise<ConceptRunResult & { task_id?: string; status?: string }>;
 
   getIntelligenceAds(
     brand?: string,

@@ -21,6 +21,7 @@ export function useGenerateProduct() {
     }: {
       id: string;
       options?: GenerateOptions;
+      showErrorToast?: boolean;
     }) => api.generateProduct(id, options),
     onMutate: ({ id }) => {
       // Pin the creative to `in_progress` locally so the progressive pipeline
@@ -68,7 +69,9 @@ export function useGenerateProduct() {
       // The trigger failed — drop the local pin so the real state shows.
       clearGenerating(variables.id);
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast("error", "Generation failed", error.message);
+      if (variables.showErrorToast !== false) {
+        toast("error", "Generation failed", error.message);
+      }
     },
   });
 }

@@ -4,6 +4,10 @@ import type {
   AgentConfigUpdate,
   AgentListResponse,
   AnalyticsResponse,
+  ConceptDetail,
+  ConceptListResponse,
+  ConceptRunResult,
+  ConceptRunDispatch,
   ConceptSummary,
   Creative,
   CreativeCounts,
@@ -146,13 +150,14 @@ function toCreative(raw: RawCreative): Creative {
 }
 
 export const httpApi: ApiClient = {
-  async getProducts(status, limit = 100, offset = 0, brand, phase) {
+  async getProducts(status, limit, offset, brand, phase, search) {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (brand) params.set("brand", brand);
     if (phase) params.set("phase", phase);
-    params.set("limit", String(limit));
-    params.set("offset", String(offset));
+    if (search) params.set("search", search);
+    if (limit != null) params.set("limit", String(limit));
+    if (offset != null) params.set("offset", String(offset));
     const res = await request<RawCreative[]>(`/v1/products?${params}`);
     return res.map(toCreative);
   },
@@ -304,6 +309,53 @@ export const httpApi: ApiClient = {
     if (offset) params.set("offset", String(offset));
     return request<IntelligenceAdList>(
       `/v1/intelligence/ads?${params.toString()}`
+    );
+  },
+
+  async getIntelligenceConcept(conceptName, brand?) {
+    const params = new URLSearchParams({ brand: brand || "numy" });
+    return request<ConceptDetail>(
+      `/v1/intelligence/concepts/${encodeURIComponent(conceptName)}?${params.toString()}`
+    );
+  },
+
+  async getIntelligenceConcepts(brand?, search?, limit?, offset?) {
+    const params = new URLSearchParams({ brand: brand || "numy" });
+    if (search) params.set("search", search);
+    if (limit) params.set("limit", String(limit));
+    if (offset) params.set("offset", String(offset));
+    return request<ConceptListResponse>(
+      `/v1/intelligence/concepts?${params.toString()}`
+    );
+  },
+
+  async runIntelligenceConcept(conceptName, brand?, datePreset?, since?, until?) {
+    const params = new URLSearchParams({ brand: brand || "numy" });
+    if (datePreset) params.set("date_preset", datePreset);
+    if (since) params.set("since", since);
+    if (until) params.set("until", until);
+    return request<ConceptRunDispatch>(
+      `/v1/intelligence/concepts/${encodeURIComponent(conceptName)}/run?${params.toString()}`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+  },
+
+  async getIntelligenceConceptRun(
+    taskId,
+    conceptName?,
+    brand?,
+    datePreset?,
+    since?,
+    until?
+  ) {
+    const params = new URLSearchParams();
+    if (conceptName) params.set("concept_name", conceptName);
+    if (brand) params.set("brand", brand);
+    if (datePreset) params.set("date_preset", datePreset);
+    if (since) params.set("since", since);
+    if (until) params.set("until", until);
+    return request<ConceptRunResult & { task_id?: string; status?: string }>(
+      `/v1/intelligence/concepts/${encodeURIComponent(conceptName ?? "")}/run/${encodeURIComponent(taskId)}?${params.toString()}`
     );
   },
 
