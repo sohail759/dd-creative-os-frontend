@@ -22,7 +22,12 @@ import {
   useIntelligenceConcept,
   useRunIntelligenceConcept,
 } from "@/hooks/use-intelligence";
-import type { ConceptDetail, AnalyticsKpis, AnalystPayload } from "@/lib/api/types";
+import type {
+  ConceptDetail,
+  AnalyticsKpis,
+  AnalystPayload,
+  IntelligenceAd,
+} from "@/lib/api/types";
 
 const WINDOWS = [
   { value: "last_7d", label: "Last 7 days" },
@@ -191,6 +196,25 @@ function normalizeNextTests(nextTests: string[] | undefined): string[] {
   return out;
 }
 
+function adIdentityKey(ad: IntelligenceAd): string {
+  const id = (ad.id || "").trim();
+  if (id) return `id:${id}`;
+  const name = (ad.name || "").trim().toLowerCase();
+  const campaign = (ad.campaign_id || "").trim();
+  const adset = (ad.adset_id || "").trim();
+  const creative = (ad.creative_id || "").trim();
+  return `fallback:${name}|${campaign}|${adset}|${creative}`;
+}
+
+function isPlaceholderAd(ad: IntelligenceAd): boolean {
+  const campaign = (ad.campaign_id || "").trim();
+  const adset = (ad.adset_id || "").trim();
+  const creative = (ad.creative_id || "").trim();
+  const status = String(ad.status || "").trim().toUpperCase();
+  const name = (ad.name || "").trim();
+  return !campaign && !adset && !creative && status === "PAUSED" && !!name;
+}
+
 export default function ConceptDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -258,9 +282,22 @@ export default function ConceptDetailPage() {
     );
   }
 
-  const ads = detail?.ads ?? [];
+  const rawAds = detail?.ads ?? [];
+  const ads: IntelligenceAd[] = (() => {
+    const seen = new Set<string>();
+    const out: IntelligenceAd[] = [];
+    for (const ad of rawAds) {
+      if (isPlaceholderAd(ad)) continue;
+      const key = adIdentityKey(ad);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(ad);
+    }
+    return out;
+  })();
+  const filteredOutCount = Math.max(0, rawAds.length - ads.length);
   const analystByAd = detail?.analyst_by_ad ?? {};
-  const total = detail?.total ?? 0;
+  const total = ads.length;
   const limit = detail?.limit ?? 200;
   const hasMore = detail?.has_more ?? false;
   const kpis = (detail?.kpis ?? {}) as AnalyticsKpis;
@@ -471,6 +508,12 @@ export default function ConceptDetailPage() {
           </h3>
           <span className="ml-auto text-xs text-muted">{total}</span>
         </div>
+        {filteredOutCount > 0 && (
+          <p className="border-b border-border/50 px-4 py-2 text-[11px] text-faint">
+            Filtered {filteredOutCount} duplicate/placeholder ad
+            {filteredOutCount === 1 ? "" : "s"}.
+          </p>
+        )}
         {ads.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">
             No ads match this concept yet. Run analytics to pull fresh data.
