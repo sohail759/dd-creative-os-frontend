@@ -36,6 +36,7 @@ export default function CreativesPage() {
 
   const [filter, setFilter] = useState<StatusFilterValue>(initialFilter);
   const [phaseFilter, setPhaseFilter] = useState(currentPhase);
+  const [searchInput, setSearchInput] = useState(currentSearch);
   const [searchFilter, setSearchFilter] = useState(currentSearch);
 
   const {
@@ -78,15 +79,25 @@ export default function CreativesPage() {
   }
 
   function handleSearchChange(value: string) {
-    setSearchFilter(value);
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set("q", value);
-    } else {
-      params.delete("q");
-    }
-    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+    setSearchInput(value);
   }
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const value = searchInput.trim();
+      setSearchFilter(value);
+
+      const params = new URLSearchParams(searchParams.toString());
+      if (value) {
+        params.set("q", value);
+      } else {
+        params.delete("q");
+      }
+      window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [searchInput, searchParams]);
 
   // First 100 items of the current filter, most recently edited first.
   const items = useMemo(
@@ -144,15 +155,21 @@ export default function CreativesPage() {
           <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3">
             <Search className="h-4 w-4 text-muted" />
             <input
-              value={searchFilter}
+              value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search creatives…"
               className="w-40 bg-transparent text-sm text-foreground placeholder:text-faint focus:outline-none sm:w-52"
             />
-            {searchFilter && (
+            {searchInput && (
               <button
                 type="button"
-                onClick={() => handleSearchChange("")}
+                onClick={() => {
+                  setSearchInput("");
+                  setSearchFilter("");
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("q");
+                  window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+                }}
                 className="text-faint transition-colors hover:text-muted"
                 aria-label="Clear search"
               >

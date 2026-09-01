@@ -16,6 +16,9 @@ import {
   AlertTriangle,
   Clock,
   Sparkles,
+  ShieldAlert,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 import {
@@ -27,6 +30,7 @@ import type {
   AnalyticsKpis,
   AnalystPayload,
   IntelligenceAd,
+  ConceptRunResult,
 } from "@/lib/api/types";
 
 const WINDOWS = [
@@ -215,6 +219,86 @@ function isPlaceholderAd(ad: IntelligenceAd): boolean {
   return !campaign && !adset && !creative && status === "PAUSED" && !!name;
 }
 
+function RunResultPanel({
+  result,
+  error,
+}: {
+  result?: ConceptRunResult | null;
+  error?: Error | null;
+}) {
+  if (result && result.ok) return null;
+
+  const hardStops = result?.hard_stops ?? [];
+  const failedChecks = (result?.audit?.checks ?? []).filter((c) => !c.ok);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+      <div className="flex items-start gap-3">
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-amber-300">
+            {result?.gated
+              ? "Analyst disabled for this concept"
+              : result
+                ? "Analysis did not complete — validation issues"
+                : "Analysis failed"}
+          </p>
+
+          {(error || (result && !result.ok)) && (
+            <p className="mt-1.5 whitespace-pre-line text-sm text-amber-200/90">
+              {result?.gate_message || result?.message || error?.message}
+            </p>
+          )}
+
+          {hardStops.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-400/80">
+                Hard stops
+              </p>
+              <ul className="mt-1 space-y-1">
+                {hardStops.map((stop, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-amber-200/90">
+                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    {stop}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {failedChecks.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-400/80">
+                Failed audit checks
+              </p>
+              <ul className="mt-1 space-y-1">
+                {failedChecks.map((check) => (
+                  <li key={check.key} className="flex items-start gap-2 text-sm text-amber-200/90">
+                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    <span>
+                      <span className="font-medium">{check.label}</span>
+                      {check.detail ? ` — ${check.detail}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result?.audit?.passed === false && result?.audit?.checks?.length > 0 && failedChecks.length === 0 && (
+            <div className="mt-3 rounded-lg border border-amber-500/20 bg-black/10 p-3">
+              <p className="flex items-center gap-2 text-sm text-amber-200/90">
+                <CheckCircle2 className="h-4 w-4 text-amber-300" />
+                Audit ran but the analysis was still flagged. Review the message above.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ConceptDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -351,6 +435,7 @@ export default function ConceptDetailPage() {
               Analytics fetched: {new Date(detail.last_fetched_at).toLocaleString()}
             </span>
           )}
+          {/*
           <select
             value={window}
             onChange={(e) => setWindow(e.target.value)}
@@ -362,6 +447,7 @@ export default function ConceptDetailPage() {
               </option>
             ))}
           </select>
+          */}
           <button
             onClick={() => setShowRunDialog(true)}
             disabled={runMutation.isPending}
@@ -374,6 +460,10 @@ export default function ConceptDetailPage() {
           </button>
         </div>
       </header>
+
+      {!runMutation.isPending && (runMutation.data || runMutation.error) && (
+        <RunResultPanel result={runMutation.data} error={runMutation.error} />
+      )}
 
       <div className="mt-6">
         <KpiCards kpis={kpis} />

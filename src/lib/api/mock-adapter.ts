@@ -594,7 +594,7 @@ export const mockApi: ApiClient = {
       const concept = ad.name.replace(/\s*-\s*(ENG|DE|v\d+).*$/i, "").toLowerCase();
       const key = concept.split(" ").slice(0, 2).join(" ");
       if (!groups.has(key)) {
-        groups.set(key, { concept_name: key, ads: [], ad_count: 0, kpis: { ...MOCK_ANALYTICS.kpis } });
+        groups.set(key, { concept_name: key, ads: [], ad_count: 0, runnable: true, kpis: { ...MOCK_ANALYTICS.kpis } });
       }
       groups.get(key)!.ads.push(ad);
       groups.get(key)!.ad_count += 1;

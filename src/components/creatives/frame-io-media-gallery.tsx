@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Loader2, Play, RefreshCw, X } from "lucide-react";
+import { Loader2, Play, RefreshCw, X, ExternalLink } from "lucide-react";
 import { useFrameAssets } from "@/hooks/use-meta-actions";
 
 type Props = {
@@ -55,6 +55,17 @@ export function FrameIoMediaGallery({ productId, frameUrl }: Props) {
     return (
       <section className="rounded-2xl border border-border bg-panel p-4">
         <p className="text-sm text-red-400">{query.data.error}</p>
+        {frameUrl && (
+          <a
+            href={frameUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open in Frame.io
+          </a>
+        )}
         <button
           onClick={() => query.refetch()}
           className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"

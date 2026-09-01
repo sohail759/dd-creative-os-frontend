@@ -225,25 +225,6 @@ export interface AnalyticsKpis {
   cpp: number;
 }
 
-export interface AnalyticsCampaign {
-  id: string;
-  name: string;
-  status: string;
-  objective: string;
-  daily_budget: number | null;
-  start_time: string | null;
-  stop_time: string | null;
-}
-
-export interface AnalyticsAd {
-  id: string;
-  name: string;
-  status: string;
-  campaign_id: string;
-  adset_id: string;
-  creative_id: string;
-}
-
 export interface AnalyticsInsight {
   spend: string;
   impressions: string;
@@ -253,6 +234,39 @@ export interface AnalyticsInsight {
   reach: string;
   actions?: Array<{ action_type: string; value: string }>;
   action_values?: Array<{ action_type: string; value: string }>;
+}
+
+export interface AdAnalytics {
+  kpis: AnalyticsKpis;
+  insights: AnalyticsInsight[];
+  fetched_at?: string | null;
+}
+
+export interface CampaignAnalytics extends AdAnalytics {
+  ad_count: number;
+}
+
+export interface AnalyticsCampaign {
+  id: string;
+  name: string;
+  status: string;
+  objective?: string | null;
+  daily_budget: number | null;
+  start_time: string | null;
+  stop_time: string | null;
+  analytics?: CampaignAnalytics;
+  ads?: AnalyticsAd[];
+}
+
+export interface AnalyticsAd {
+  id: string;
+  name: string;
+  status: string;
+  campaign_id: string;
+  adset_id: string;
+  creative_id: string;
+  campaign_name?: string;
+  analytics?: AdAnalytics;
 }
 
 export interface AnalyticsResponse {
@@ -440,6 +454,7 @@ export interface ConceptGroup {
   concept_name: string;
   ads: IntelligenceAd[];
   ad_count: number;
+  runnable: boolean;
   kpis: AnalyticsKpis;
 }
 

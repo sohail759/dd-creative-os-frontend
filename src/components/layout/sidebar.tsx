@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
   { label: "Intelligence", href: "/intelligence", icon: Brain },
   { label: "Uploaded Products", href: "/uploaded-products", icon: Upload },
-  // { label: "Agent Configuration", href: "/agents", icon: Bot },
+  { label: "Agent Configuration", href: "/agents", icon: Bot },
 ];
 
 function BrandMark() {

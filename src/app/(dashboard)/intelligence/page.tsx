@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Brain, Loader2, AlertTriangle, Search, Layers } from "lucide-react";
@@ -45,10 +45,14 @@ export default function IntelligencePage() {
     offset,
   );
 
-  function applySearch(value = search) {
-    setOffset(0);
-    setQuery(value.trim());
-  }
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setOffset(0);
+      setQuery(search.trim());
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [search]);
 
   function setBrand(slug: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -120,11 +124,7 @@ export default function IntelligencePage() {
           <Search className="h-4 w-4 shrink-0 text-faint" />
           <input
             value={search}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSearch(value);
-              applySearch(value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search concepts (e.g. B321)"
             className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-faint"
           />

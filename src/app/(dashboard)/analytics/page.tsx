@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -16,10 +16,13 @@ import {
   Target,
   RefreshCw,
   Clock,
+  TrendingUp,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 import { useAnalytics, useFetchAllAnalytics } from "@/hooks/use-analytics";
-import type { AnalyticsKpis, AnalyticsCampaign, AnalyticsAd } from "@/lib/api/types";
+import type { AnalyticsKpis, AnalyticsCampaign, AnalyticsAd, AdAnalytics } from "@/lib/api/types";
 
 function ConfirmDialog({
   open,
@@ -76,16 +79,20 @@ function KpiCards({ kpis }: { kpis: AnalyticsKpis }) {
   const items = [
     { label: "Spend", value: kpis.spend > 0 ? `€${Math.round(kpis.spend).toLocaleString()}` : "—", icon: DollarSign },
     { label: "Impressions", value: kpis.impressions > 0 ? kpis.impressions.toLocaleString() : "—", icon: Eye },
+    { label: "Reach", value: kpis.reach > 0 ? kpis.reach.toLocaleString() : "—", icon: Eye },
     { label: "Clicks", value: kpis.clicks > 0 ? kpis.clicks.toLocaleString() : "—", icon: MousePointerClick },
+    { label: "Purchases", value: kpis.purchases > 0 ? kpis.purchases.toLocaleString() : "—", icon: ShoppingCart },
+    { label: "Purchase Value", value: kpis.purchase_value > 0 ? `€${Math.round(kpis.purchase_value).toLocaleString()}` : "—", icon: DollarSign },
     { label: "CTR", value: kpis.ctr > 0 ? `${kpis.ctr.toFixed(2)}%` : "—", icon: Target },
     { label: "CPC", value: kpis.cpc > 0 ? `€${kpis.cpc.toFixed(2)}` : "—", icon: DollarSign },
     { label: "CPM", value: kpis.cpm > 0 ? `€${kpis.cpm.toFixed(2)}` : "—", icon: BarChart3 },
-    { label: "Purchases", value: kpis.purchases > 0 ? kpis.purchases.toLocaleString() : "—", icon: ShoppingCart },
-    { label: "ROAS", value: kpis.roas > 0 ? kpis.roas.toFixed(2) : "—", icon: DollarSign },
+    { label: "CPP", value: kpis.cpp > 0 ? `€${kpis.cpp.toFixed(2)}` : "—", icon: ShoppingCart },
+    { label: "ROAS", value: kpis.roas > 0 ? kpis.roas.toFixed(2) : "—", icon: TrendingUp },
+    { label: "Freq.", value: kpis.impressions > 0 && kpis.reach > 0 ? `${(kpis.impressions / kpis.reach).toFixed(2)}x` : "—", icon: Target },
   ];
 
   return (
-    <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+    <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {items.map((kpi) => {
         const Icon = kpi.icon;
         return (
@@ -102,7 +109,43 @@ function KpiCards({ kpis }: { kpis: AnalyticsKpis }) {
   );
 }
 
+function AdAnalyticsStrip({ analytics }: { analytics?: AdAnalytics }) {
+  const k = analytics?.kpis;
+  if (!k || (k.spend === 0 && k.impressions === 0)) {
+    return (
+      <p className="text-xs text-muted">No analytics available for this ad.</p>
+    );
+  }
+  const cells = [
+    { label: "Spend", value: `€${Math.round(k.spend).toLocaleString()}` },
+    { label: "Impr", value: k.impressions > 0 ? k.impressions.toLocaleString() : "—" },
+    { label: "Clicks", value: k.clicks > 0 ? k.clicks.toLocaleString() : "—" },
+    { label: "CTR", value: k.ctr > 0 ? `${k.ctr.toFixed(2)}%` : "—" },
+    { label: "CPC", value: k.cpc > 0 ? `€${k.cpc.toFixed(2)}` : "—" },
+    { label: "CPM", value: k.cpm > 0 ? `€${k.cpm.toFixed(2)}` : "—" },
+    { label: "Purch", value: k.purchases > 0 ? k.purchases.toLocaleString() : "—" },
+    { label: "ROAS", value: k.roas > 0 ? k.roas.toFixed(2) : "—" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-[9px] font-medium uppercase tracking-wider text-faint">{c.label}</p>
+          <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">{c.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatObjective(objective?: string | null) {
+  if (!objective) return "—";
+  return objective.replace(/^OUTCOME_/, "");
+}
+
 function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (campaigns.length === 0) {
     return (
       <div className="rounded-2xl border border-border bg-panel p-5">
@@ -137,25 +180,85 @@ function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border text-[10px] uppercase tracking-wider text-faint">
+              <th className="w-6 pb-2 pr-1"></th>
               <th className="pb-2 pr-4">Name</th>
               <th className="pb-2 pr-4">Status</th>
+              <th className="pb-2 pr-4">Ads</th>
+              <th className="pb-2 pr-4 text-right">Spend</th>
+              <th className="pb-2 pr-4 text-right">ROAS</th>
               <th className="pb-2 pr-4">Objective</th>
               <th className="pb-2 pr-4 text-right">Budget</th>
               <th className="pb-2 text-right">Started</th>
             </tr>
           </thead>
           <tbody>
-            {campaigns.map((c) => (
-              <tr key={c.id} className="border-b border-border/50 last:border-0">
-                <td className="py-2.5 pr-4 text-foreground max-w-[300px] truncate">{c.name}</td>
-                <td className={`py-2.5 pr-4 font-medium ${statusColor(c.status)}`}>{c.status}</td>
-                <td className="py-2.5 pr-4 text-muted">{c.objective.replace("OUTCOME_", "")}</td>
-                <td className="py-2.5 pr-4 text-right tabular-nums text-muted">{formatBudget(c.daily_budget)}</td>
-                <td className="py-2.5 text-right text-muted">
-                  {c.start_time ? new Date(c.start_time).toLocaleDateString() : "—"}
-                </td>
-              </tr>
-            ))}
+            {campaigns.map((c) => {
+              const ca = c.analytics;
+              const isExpanded = expanded === c.id;
+              const ads = c.ads ?? [];
+              return (
+                <Fragment key={c.id}>
+                  <tr
+                    className="border-b border-border/50 last:border-0 cursor-pointer select-none"
+                    onClick={() => setExpanded(isExpanded ? null : c.id)}
+                  >
+                    <td className="py-2.5 pr-1 text-muted">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-foreground max-w-[260px] truncate">{c.name}</td>
+                    <td className={`py-2.5 pr-4 font-medium ${statusColor(c.status)}`}>{c.status}</td>
+                    <td className="py-2.5 pr-4 text-muted tabular-nums">
+                      {ca ? ca.ad_count : ads.length || "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {ca && ca.kpis.spend > 0 ? `€${Math.round(ca.kpis.spend).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {ca && ca.kpis.roas > 0 ? ca.kpis.roas.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-muted">{formatObjective(c.objective)}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">{formatBudget(c.daily_budget)}</td>
+                    <td className="py-2.5 text-right text-muted">
+                      {c.start_time ? new Date(c.start_time).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-border/50 bg-black/20 last:border-0">
+                      <td colSpan={9} className="py-4 pl-8 pr-4">
+                        {ads.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+                            {ca ? "No per-ad analytics available for this campaign yet." : "No ads linked to this campaign."}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {ads.map((ad) => (
+                              <div
+                                key={ad.id}
+                                className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-panel p-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                  <span className="max-w-[280px] truncate text-sm font-medium text-foreground">
+                                    {ad.name || "Unnamed ad"}
+                                  </span>
+                                  <span className="text-[10px] font-medium uppercase tracking-wider text-faint">
+                                    {ad.status}
+                                  </span>
+                                </div>
+                                <AdAnalyticsStrip analytics={ad.analytics} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -164,6 +267,8 @@ function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
 }
 
 function AdsTable({ ads }: { ads: AnalyticsAd[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (ads.length === 0) {
     return (
       <div className="rounded-2xl border border-border bg-panel p-5">
@@ -194,21 +299,66 @@ function AdsTable({ ads }: { ads: AnalyticsAd[] }) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border text-[10px] uppercase tracking-wider text-faint">
+              <th className="w-6 pb-2 pr-1"></th>
               <th className="pb-2 pr-4">Name</th>
               <th className="pb-2 pr-4">Status</th>
-              <th className="pb-2 pr-4">Campaign ID</th>
-              <th className="pb-2">Ad ID</th>
+              <th className="pb-2 pr-4 text-right">Spend</th>
+              <th className="pb-2 pr-4 text-right">Clicks</th>
+<th className="pb-2 pr-4 text-right">CTR</th>
+              <th className="pb-2 pr-4 text-right">ROAS</th>
+              <th className="pb-2">Campaign</th>
             </tr>
           </thead>
           <tbody>
-            {ads.map((a) => (
-              <tr key={a.id} className="border-b border-border/50 last:border-0">
-                <td className="py-2.5 pr-4 text-foreground max-w-[300px] truncate">{a.name}</td>
-                <td className={`py-2.5 pr-4 font-medium ${statusColor(a.status)}`}>{a.status}</td>
-                <td className="py-2.5 pr-4 text-muted font-mono text-xs">{a.campaign_id}</td>
-                <td className="py-2.5 text-muted font-mono text-xs">{a.id}</td>
-              </tr>
-            ))}
+            {ads.map((a) => {
+              const k = a.analytics?.kpis;
+              const isExpanded = expanded === a.id;
+              return (
+                <Fragment key={a.id}>
+                  <tr
+                    className="border-b border-border/50 last:border-0 cursor-pointer select-none"
+                    onClick={() => setExpanded(isExpanded ? null : a.id)}
+                  >
+                    <td className="py-2.5 pr-1 text-muted">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-foreground max-w-[300px] truncate">{a.name}</td>
+                    <td className={`py-2.5 pr-4 font-medium ${statusColor(a.status)}`}>{a.status}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.spend > 0 ? `€${Math.round(k.spend).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.clicks > 0 ? k.clicks.toLocaleString() : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.ctr > 0 ? `${k.ctr.toFixed(2)}%` : "—"}
+                    </td>
+<td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.roas > 0 ? k.roas.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2.5 text-muted max-w-[220px] truncate">
+                      {a.campaign_name || a.campaign_id || "—"}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-border/50 bg-black/20 last:border-0">
+                      <td colSpan={8} className="py-4 pl-8 pr-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                          <span className="font-mono">Ad ID: {a.id}</span>
+                          {a.adset_id && <span className="font-mono">Adset: {a.adset_id}</span>}
+                          {a.campaign_name && <span>Campaign: {a.campaign_name}</span>}
+                        </div>
+                        <AdAnalyticsStrip analytics={a.analytics} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
