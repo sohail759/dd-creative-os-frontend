@@ -517,3 +517,70 @@ export interface ConceptRunDispatch {
   since: string;
   until: string;
 }
+
+// --------------------------------------------------------------------------
+// Meta Page Health
+// --------------------------------------------------------------------------
+
+export interface MetaPageHealthCampaign {
+  campaign_id: string;
+  campaign_name?: string;
+  total_ads: number;
+  running_ads: number;
+}
+
+export interface MetaPageHealthSummary {
+  page_count: number;
+  active_launch_eligible_count: number;
+  excluded_count: number;
+  total_running_ads: number;
+  account_total_ads?: number;
+  account_running_ads?: number;
+  account_ads_remaining?: number;
+  account_ad_limit?: number;
+  campaigns?: MetaPageHealthCampaign[];
+  ad_account_id?: string;
+  source?: string;
+  attribution_level?: string;
+}
+
+export interface MetaPageHealthPage {
+  id: string;
+  name: string;
+  canonical_name: string;
+  running_or_in_review_ads: number;
+  total_ads: number;
+  page_limit: number;
+  ads_remaining: number;
+  suppression_status: string;
+  drift_state: string;
+  launch_status: string;
+  launch_block_reason: string;
+  brand_scope: string;
+  type: string;
+  lang_affinity: string[];
+  meta_publication_status: string;
+  meta_restriction_status: string;
+  followers?: number | null;
+  new_likes?: number | null;
+  talking_about?: number | null;
+  unread_messages?: number | null;
+  unread_notifications?: number | null;
+}
+
+export interface MetaPageHealthResponse {
+  pages: MetaPageHealthPage[];
+  summary: MetaPageHealthSummary;
+  errors: string[];
+  ad_account_id?: string | null;
+  last_fetched_at?: string | null;
+}
+
+export interface MetaPageHealthRefreshResponse {
+  success: boolean;
+  message: string;
+  pages: MetaPageHealthPage[];
+  summary: MetaPageHealthSummary;
+  errors: string[];
+  last_fetched_at?: string | null;
+}

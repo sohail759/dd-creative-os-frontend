@@ -22,6 +22,8 @@ import type {
   UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
+  MetaPageHealthResponse,
+  MetaPageHealthRefreshResponse,
 } from "./types";
 
 /**
@@ -372,6 +374,19 @@ export const httpApi: ApiClient = {
     return request<IntelligenceDetail>(
       `/v1/intelligence/ads/${encodeURIComponent(adId)}/fetch?${params.toString()}`,
       { method: "POST", body: JSON.stringify({}) }
+    );
+  },
+
+  async getPageHealth(brand = "numy") {
+    const params = new URLSearchParams({ brand });
+    return request<MetaPageHealthResponse>(`/v1/meta-page-health?${params}`);
+  },
+
+  async refreshPageHealth(brand = "numy") {
+    const params = new URLSearchParams({ brand });
+    return request<MetaPageHealthRefreshResponse>(
+      `/v1/meta-page-health?${params}`,
+      { method: "POST", body: JSON.stringify({}) },
     );
   },
 };

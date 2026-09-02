@@ -26,6 +26,8 @@ import type {
   UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
+  MetaPageHealthResponse,
+  MetaPageHealthRefreshResponse,
 } from "./types";
 
 export interface ApiClient {
@@ -96,4 +98,7 @@ export interface ApiClient {
     brand?: string,
     datePreset?: string,
   ): Promise<IntelligenceDetail>;
+
+  getPageHealth(brand?: string): Promise<MetaPageHealthResponse>;
+  refreshPageHealth(brand?: string): Promise<MetaPageHealthRefreshResponse>;
 }

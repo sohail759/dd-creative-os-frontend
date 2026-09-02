@@ -12,6 +12,7 @@ import {
   Bot,
   Brain,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const BRANDS = [
 
 const NAV_ITEMS = [
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
+  { label: "Meta Pages Health", href: "/meta-page-health", icon: ShieldCheck },
   { label: "Intelligence", href: "/intelligence", icon: Brain },
   { label: "Uploaded Products", href: "/uploaded-products", icon: Upload },
   { label: "Agent Configuration", href: "/agents", icon: Bot },

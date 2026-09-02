@@ -39,6 +39,10 @@ export type {
    IntelligenceBlock,
    IntelligenceData,
    IntelligenceDetail,
+   MetaPageHealthPage,
+   MetaPageHealthSummary,
+   MetaPageHealthResponse,
+   MetaPageHealthRefreshResponse,
 } from "./types";
 export { CREATIVE_STATUSES, STATUS_LABELS } from "./types";
 

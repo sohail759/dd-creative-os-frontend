@@ -690,6 +690,29 @@ export const mockApi: ApiClient = {
       intelligence: fresh,
     };
   },
+
+  async getPageHealth() {
+    await delay(400);
+    return {
+      pages: [],
+      summary: { page_count: 0, active_launch_eligible_count: 0, excluded_count: 0, total_running_ads: 0, ad_account_id: "", source: "mock" },
+      errors: [],
+      ad_account_id: null,
+      last_fetched_at: null,
+    };
+  },
+
+  async refreshPageHealth() {
+    await delay(800);
+    return {
+      success: true,
+      message: "Mock page health refresh complete.",
+      pages: [],
+      summary: { page_count: 0, active_launch_eligible_count: 0, excluded_count: 0, total_running_ads: 0, ad_account_id: "", source: "mock" },
+      errors: [],
+      last_fetched_at: new Date().toISOString(),
+    };
+  },
 };
 
 const DEFAULT_COPYWRITER_PROMPT =
