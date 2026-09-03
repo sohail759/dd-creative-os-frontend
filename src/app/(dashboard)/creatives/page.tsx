@@ -2,18 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LayoutGrid, RefreshCw, Filter, Search } from "lucide-react";
-import { CREATIVE_STATUSES } from "@/lib/api/types";
+import { LayoutGrid, RefreshCw, Search, Table2 } from "lucide-react";
+import { CREATIVE_PHASES } from "@/lib/api/types";
 import {
-  useProductCounts,
   useProducts,
 } from "@/hooks/use-products";
 import { useGenerateProduct } from "@/hooks/use-generate";
-import { ProductCard } from "@/components/creatives/product-card";
+import { BatchCard } from "@/components/creatives/batch-card";
+import { BatchTable } from "@/components/creatives/batch-table";
 import {
-  StatusFilter,
-  type StatusFilterValue,
-} from "@/components/creatives/status-filter";
+  PhaseFilter,
+  type PhaseFilterValue,
+} from "@/components/creatives/phase-filter";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -23,21 +23,14 @@ export default function CreativesPage() {
   const currentPhase = searchParams.get("phase") ?? "";
   const currentSearch = searchParams.get("q") ?? "";
 
-  const initialFilter = (() => {
-    const status = searchParams.get("status");
-    if (
-      status &&
-      (status === "all" || (CREATIVE_STATUSES as readonly string[]).includes(status))
-    ) {
-      return status as StatusFilterValue;
-    }
-    return "in_progress";
-  })();
+  const initialPhase = (CREATIVE_PHASES as readonly string[]).includes(currentPhase)
+    ? (currentPhase as PhaseFilterValue)
+    : "Write";
 
-  const [filter, setFilter] = useState<StatusFilterValue>(initialFilter);
-  const [phaseFilter, setPhaseFilter] = useState(currentPhase);
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilterValue>(initialPhase);
   const [searchInput, setSearchInput] = useState(currentSearch);
   const [searchFilter, setSearchFilter] = useState(currentSearch);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const {
     data,
@@ -50,32 +43,24 @@ export default function CreativesPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useProducts(
-    searchFilter ? undefined : filter === "all" ? undefined : filter,
+    undefined,
     currentBrand,
-    searchFilter ? undefined : phaseFilter || undefined,
+    phaseFilter === "all" ? undefined : phaseFilter,
     searchFilter || undefined
   );
-  const { data: counts } = useProductCounts(currentBrand, phaseFilter || undefined);
   const autoTrigger = useGenerateProduct();
   const triggeredRef = useRef<Set<string>>(new Set());
 
-  function handleFilterChange(value: StatusFilterValue) {
-    setFilter(value);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("status", value);
-    if (phaseFilter) params.set("phase", phaseFilter);
-    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
-  }
-
-  function handlePhaseChange(value: string) {
+  function handlePhaseChange(value: PhaseFilterValue) {
     setPhaseFilter(value);
     const params = new URLSearchParams(searchParams.toString());
-    if (value) {
+    if (value !== "all") {
       params.set("phase", value);
     } else {
       params.delete("phase");
     }
-    window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
   }
 
   function handleSearchChange(value: string) {
@@ -93,16 +78,21 @@ export default function CreativesPage() {
       } else {
         params.delete("q");
       }
-      window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+      const query = params.toString();
+      window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
     }, 300);
 
     return () => window.clearTimeout(handle);
   }, [searchInput, searchParams]);
 
   // First 100 items of the current filter, most recently edited first.
-  const items = useMemo(
-    () => data?.pages.flat() ?? [],
-    [data],
+  const items = useMemo(() => data?.pages.flat() ?? [], [data]);
+
+  // The batch UI renders top-level batches only (no Parent item relation).
+  // Concepts live inline inside each BatchCard.
+  const batches = useMemo(
+    () => items.filter((p) => (p.parentItem?.length ?? 0) === 0),
+    [items],
   );
 
   // Existing in-progress creatives without copy yet: the backend webhook may
@@ -140,7 +130,7 @@ export default function CreativesPage() {
         <button
           onClick={() => refetch()}
           disabled={isRefetching}
-          className="inline-flex items-center gap-2 self-start rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-foreground disabled:opacity-60"
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-accent/40 bg-accent-dim px-3 py-2 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent hover:text-black disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
           Refresh
@@ -148,11 +138,10 @@ export default function CreativesPage() {
       </header>
 
       <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <StatusFilter value={filter} onChange={handleFilterChange} counts={counts} />
+        <PhaseFilter value={phaseFilter} onChange={handlePhaseChange} />
 
-        {/* Search + phase filter */}
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3">
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-surface px-3">
             <Search className="h-4 w-4 text-muted" />
             <input
               value={searchInput}
@@ -168,7 +157,8 @@ export default function CreativesPage() {
                   setSearchFilter("");
                   const params = new URLSearchParams(searchParams.toString());
                   params.delete("q");
-                  window.history.replaceState(null, "", `/creatives?${params.toString()}`);
+                  const query = params.toString();
+                  window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
                 }}
                 className="text-faint transition-colors hover:text-muted"
                 aria-label="Clear search"
@@ -177,32 +167,42 @@ export default function CreativesPage() {
               </button>
             )}
           </label>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted" />
-            <select
-              value={phaseFilter}
-              onChange={(e) => handlePhaseChange(e.target.value)}
-              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground"
+          <div className="flex items-center rounded-lg border border-border bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              aria-pressed={viewMode === "grid"}
+              title="Grid view"
+              className={`rounded-md p-1.5 transition-colors ${
+                viewMode === "grid"
+                  ? "bg-accent-dim text-accent"
+                  : "text-muted hover:text-foreground"
+              }`}
             >
-              <option value="">All Phases</option>
-              <option value="Testing">Testing</option>
-              <option value="Active">Active</option>
-              <option value="Launch">Launch</option>
-              <option value="Editing">Editing</option>
-              <option value="Iterate">Iterate</option>
-              <option value="Write">Write</option>
-              <option value="Archived">Archived</option>
-              <option value="Upload">Upload</option>
-              <option value="Filming">Filming</option>
-              <option value="Not started">Not started</option>
-            </select>
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              aria-label="Table view"
+              aria-pressed={viewMode === "table"}
+              title="Table view"
+              className={`rounded-md p-1.5 transition-colors ${
+                viewMode === "table"
+                  ? "bg-accent-dim text-accent"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              <Table2 className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
 
       <div className="mt-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-4 ${viewMode === "grid" ? "lg:grid-cols-2" : ""}`}>
             {Array.from({ length: 4 }).map((_, i) => (
               <ProductCardSkeleton key={i} />
             ))}
@@ -221,30 +221,32 @@ export default function CreativesPage() {
               </button>
             }
           />
-        ) : items.length === 0 ? (
+        ) : items.length === 0 || batches.length === 0 ? (
           <EmptyState
             icon={<LayoutGrid className="h-6 w-6" />}
             title={
-              searchFilter
-                ? "No creatives match your search"
-                : counts?.all === 0
-                  ? "No creatives found"
-                  : `No ${filter === "all" ? "creatives" : filter.replace("_", " ")} yet`
+              batches.length === 0 && items.length > 0
+                ? "No batches found"
+                : searchFilter
+                  ? "No batches match your search"
+                  : `No ${phaseFilter === "all" ? "batches" : phaseFilter} creatives yet`
             }
             description={
               searchFilter
                 ? 'Try a different search term or clear the search box.'
-                : counts?.all === 0
-                  ? "Connect the backend or switch the filter to see your products."
-                  : "Try a different status filter."
+                : "Try a different phase filter."
             }
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {items.map((p) => (
-              <ProductCard key={p.id} creative={p} statusParam={filter} />
-            ))}
-          </div>
+          viewMode === "table" ? (
+            <BatchTable batches={batches} />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {batches.map((p) => (
+                <BatchCard key={p.id} id={p.id} />
+              ))}
+            </div>
+          )
         )}
       </div>
 

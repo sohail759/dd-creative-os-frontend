@@ -3,6 +3,9 @@ import type {
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
+  Batch,
+  BatchSyncResult,
+  BatchUploadResult,
   ConceptDetail,
   ConceptListResponse,
   ConceptRunResult,
@@ -46,11 +49,19 @@ export interface ApiClient {
   updateCopywriterPrompt(payload: PromptSettingUpdate): Promise<PromptSetting>;
   updateCreativeCopy(id: string, payload: CreativeCopyUpdate): Promise<Creative>;
   updateFrameUrl(id: string, payload: FrameUrlUpdate): Promise<FrameUrlResponse>;
-  getFrameAssets(id: string): Promise<FrameAssetsResponse>;
+  getFrameAssets(id: string, refresh?: boolean): Promise<FrameAssetsResponse>;
   getUploadOptions(id: string): Promise<MetaUploadOptions>;
   getMetaProgress(id: string): Promise<MetaProgress>;
   uploadProduct(id: string, payload: MetaUploadPayload): Promise<MetaActionResponse>;
   launchProduct(id: string): Promise<MetaActionResponse>;
+
+  // Batch -> Concept -> Language workflow
+  getBatchSummary(id: string): Promise<Batch>;
+  syncBatch(id: string): Promise<BatchSyncResult>;
+  runDeconstruct(conceptId: string): Promise<{ id: string; ok?: boolean; payload?: unknown }>;
+  runCopywriter(conceptId: string, force?: boolean): Promise<{ id: string; status?: string; job?: string }>;
+  uploadConcept(conceptId: string, payload?: MetaUploadPayload): Promise<MetaActionResponse>;
+  uploadBatch(batchId: string): Promise<BatchUploadResult>;
 
   getAnalytics(brand?: string, limit?: number, offset?: number): Promise<AnalyticsResponse>;
   getUploadedProducts(brand?: string): Promise<UploadedProduct[]>;

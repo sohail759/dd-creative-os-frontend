@@ -32,6 +32,19 @@ export const STATUS_LABELS: Record<CreativeStatus, string> = {
   revision: "Revision",
 };
 
+export const CREATIVE_PHASES = [
+  "Testing",
+  "Active",
+  "Launch",
+  "Editing",
+  "Iterate",
+  "Write",
+  "Archived",
+  "Upload",
+  "Filming",
+  "Not started",
+] as const;
+
 /** Light summary of a concept nested under a batch product. */
 export interface ConceptSummary {
   id: string;
@@ -516,4 +529,118 @@ export interface ConceptRunDispatch {
   date_preset: string;
   since: string;
   until: string;
+}
+
+// --------------------------------------------------------------------------- //
+// Batch -> Concept -> Language workflow
+// --------------------------------------------------------------------------- //
+
+/** The three readiness checks that gate a concept (all must pass to be ready). */
+export interface ConceptReadiness {
+  frame_url: boolean;
+  /** Deconstruction AND copywriter both complete. */
+  creative: boolean;
+  destination_url: boolean;
+  is_ready: boolean;
+}
+
+/** Which user actions are available for a concept based on its readiness. */
+export interface ConceptActions {
+  /** Frame URL or Destination URL missing -> require a Notion sync. */
+  sync_required: boolean;
+  can_run_deconstruct: boolean;
+  can_run_copywriter: boolean;
+  can_upload: boolean;
+}
+
+/** Language-level copy (Level C children of a concept). */
+export interface CreativeLanguage {
+  id: string;
+  name: string;
+  headlines: string[];
+  primary_texts: string[];
+  copywriter_completed: boolean;
+}
+
+/** Meta upload state persisted per concept. */
+export interface ConceptMeta {
+  adset_id?: string | null;
+  ad_id?: string | null;
+  upload_status?: string | null;
+}
+
+/** A concept (Level B) nested under its batch, with derived readiness. */
+export interface BatchConcept {
+  id: string;
+  name: string;
+  frame_url?: string | null;
+  destination_url?: string | null;
+  notion_url?: string | null;
+  readiness: ConceptReadiness;
+  actions: ConceptActions;
+  meta: ConceptMeta;
+  generation_status: GenerationStatus;
+  generation_updated_at?: string | null;
+  generation_error?: string | null;
+  headlines: string[];
+  primary_texts: string[];
+  languages: CreativeLanguage[];
+}
+
+/** Readiness summary for a whole batch (all concepts). */
+export interface BatchReadiness {
+  is_ready: boolean;
+  total_concepts: number;
+  ready_concepts: number;
+}
+
+/** Meta upload state persisted at the batch (Ad Set) level. */
+export interface BatchMeta {
+  adset_id?: string | null;
+  upload_status?: string | null;
+}
+
+/** Normalized batch payload returned by the backend batch endpoints. */
+export interface Batch {
+  id: string;
+  name: string;
+  notion_url?: string | null;
+  meta: BatchMeta;
+  readiness: BatchReadiness;
+  concepts: BatchConcept[];
+}
+
+/** Per-concept result of a batch upload. */
+export interface BatchUploadConceptResult {
+  id: string;
+  ok: boolean;
+  error?: string | null;
+  code?: string;
+  retryable?: boolean;
+  retry_after?: number | null;
+  meta_state?: string;
+  message?: string;
+  meta_ids?: Record<string, string>;
+}
+
+/** Response from uploading a whole batch. */
+export interface BatchUploadResult {
+  batch_id: string;
+  results: BatchUploadConceptResult[];
+}
+
+/** Immediate response from syncing a batch from Notion. */
+export interface BatchSyncResult {
+  id: string;
+  name: string;
+  synced_at: string;
+}
+
+/** Immediate response from dispatching a concept deconstruct/copywriter run. */
+export interface ConceptRunDispatchResult {
+  id: string;
+  status?: string;
+  job?: string;
+  ok?: boolean;
+  payload?: unknown;
 }

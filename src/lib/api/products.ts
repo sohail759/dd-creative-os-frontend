@@ -4,6 +4,9 @@ import type {
   AgentConfigUpdate,
   AgentListResponse,
   AnalyticsResponse,
+  Batch,
+  BatchSyncResult,
+  BatchUploadResult,
   ConceptDetail,
   ConceptListResponse,
   ConceptRunResult,
@@ -44,6 +47,22 @@ function apiUrl(path: string): string {
   return `${base}${path}`;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  code?: string;
+  retryable: boolean;
+  retryAfter?: number;
+
+  constructor(message: string, options: { status: number; code?: string; retryable?: boolean; retryAfter?: number }) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = options.status;
+    this.code = options.code;
+    this.retryable = options.retryable ?? false;
+    this.retryAfter = options.retryAfter;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -71,18 +90,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     let detail = `Request failed with ${res.status}`;
+    let code: string | undefined;
+    let retryable = false;
+    let retryAfter: number | undefined;
     try {
       const body = await res.json();
       if (body?.detail) {
-        detail =
-          typeof body.detail === "string"
-            ? body.detail
-            : JSON.stringify(body.detail);
+        if (typeof body.detail === "string") {
+          detail = body.detail;
+        } else {
+          detail = body.detail.message ?? JSON.stringify(body.detail);
+          code = body.detail.code;
+          retryable = Boolean(body.detail.retryable);
+          retryAfter = body.detail.retry_after ?? undefined;
+        }
       }
     } catch {
       /* ignore parse errors */
     }
-    throw new Error(detail);
+    throw new ApiRequestError(detail, { status: res.status, code, retryable, retryAfter });
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -224,8 +250,8 @@ export const httpApi: ApiClient = {
     });
   },
 
-  async getFrameAssets(id) {
-    return request(`/v1/products/${encodeURIComponent(id)}/frame-assets`);
+  async getFrameAssets(id, refresh = false) {
+    return request(`/v1/products/${encodeURIComponent(id)}/frame-assets${refresh ? "?refresh=true" : ""}`);
   },
 
   async getUploadOptions(id) {
@@ -250,6 +276,51 @@ export const httpApi: ApiClient = {
   async launchProduct(id) {
     return request<MetaActionResponse>(
       `/v1/products/${encodeURIComponent(id)}/launch`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  },
+
+  // --- Batch -> Concept -> Language workflow ---
+  async getBatchSummary(id) {
+    return request<Batch>(`/v1/products/batch-summary/${encodeURIComponent(id)}`);
+  },
+
+  async syncBatch(id) {
+    return request<BatchSyncResult>(
+      `/v1/products/${encodeURIComponent(id)}/sync`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  },
+
+  async runDeconstruct(conceptId) {
+    return request<{ id: string; ok?: boolean; payload?: unknown }>(
+      `/v1/products/${encodeURIComponent(conceptId)}/deconstruct`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  },
+
+  async runCopywriter(conceptId, force) {
+    const params = new URLSearchParams();
+    if (force) params.set("force", "true");
+    const qs = params.toString();
+    return request<{ id: string; status?: string; job?: string }>(
+      `/v1/products/${encodeURIComponent(conceptId)}/copywriter${qs ? `?${qs}` : ""}`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  },
+
+  async uploadConcept(conceptId, payload) {
+    return request<MetaActionResponse>(
+      `/v1/products/${encodeURIComponent(conceptId)}/upload-concept`,
+      payload
+        ? { method: "POST", body: JSON.stringify(payload) }
+        : { method: "POST" },
+    );
+  },
+
+  async uploadBatch(batchId) {
+    return request<BatchUploadResult>(
+      `/v1/products/${encodeURIComponent(batchId)}/upload-batch`,
       { method: "POST", body: JSON.stringify({}) },
     );
   },

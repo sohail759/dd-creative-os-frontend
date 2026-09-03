@@ -39,6 +39,18 @@ export type {
    IntelligenceBlock,
    IntelligenceData,
    IntelligenceDetail,
+  Batch,
+  BatchConcept,
+  BatchMeta,
+  BatchReadiness,
+  BatchSyncResult,
+  BatchUploadResult,
+  BatchUploadConceptResult,
+  ConceptReadiness,
+  ConceptActions,
+  CreativeLanguage,
+  ConceptMeta,
+  ConceptRunDispatchResult,
 } from "./types";
 export { CREATIVE_STATUSES, STATUS_LABELS } from "./types";
 
