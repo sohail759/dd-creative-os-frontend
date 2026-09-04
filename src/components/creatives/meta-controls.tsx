@@ -123,7 +123,7 @@ export function MetaControls({
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-foreground disabled:opacity-60"
           >
             <Video className="h-3.5 w-3.5" />
-            Add Frame URL
+            Add Creative URL
           </button>
           )}
         </div>
@@ -163,7 +163,7 @@ export function MetaControls({
 
       {isConcept && !creative.frameUrl && !hasGeneratedCopy && (
         <p className="text-xs text-faint">
-          Frame URL missing — upload Frame URL in Notion for this creative.
+          Creative URL missing — add the Creative URL in Notion for this creative.
         </p>
       )}
 
@@ -199,7 +199,7 @@ export function MetaControls({
           className="rounded-xl border border-border bg-panel p-3"
         >
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Frame URL
+            Creative URL
             <input
               value={frameInput}
               onChange={(e) => setFrameInput(e.target.value)}
@@ -228,7 +228,7 @@ export function MetaControls({
             </button>
           </div>
           <p className="mt-2 text-[11px] text-faint">
-            Saved locally as an override when Notion Frame URL is empty.
+            Saved locally as an override when the Notion Creative URL is empty.
           </p>
         </div>
       )}

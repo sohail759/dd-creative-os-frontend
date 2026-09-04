@@ -47,6 +47,17 @@ export function useFrameAssets(id: string, enabled: boolean) {
     queryFn: () => api.getFrameAssets(id),
     enabled,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: "always",
+  });
+}
+
+export function useRefreshFrameAssets(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.getFrameAssets(id, true),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["products", id, "frame-assets"], data);
+    },
   });
 }
 
@@ -128,10 +139,10 @@ export function useUpdateFrameUrl() {
         queryClient,
       );
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast("success", "Frame URL saved", "Updated creative video URL.");
+      toast("success", "Creative URL saved", "Updated creative video URL.");
     },
     onError: (error: Error) => {
-      toast("error", "Frame URL update failed", error.message);
+      toast("error", "Creative URL update failed", error.message);
     },
   });
 }

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Loader2, Play, RefreshCw, X, ExternalLink } from "lucide-react";
-import { useFrameAssets } from "@/hooks/use-meta-actions";
+import { useFrameAssets, useRefreshFrameAssets } from "@/hooks/use-meta-actions";
 
 type Props = {
   productId: string;
@@ -20,6 +20,7 @@ type Preview = {
 export function FrameIoMediaGallery({ productId, frameUrl }: Props) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const query = useFrameAssets(productId, Boolean(frameUrl));
+  const refreshMedia = useRefreshFrameAssets(productId);
 
   const assets = useMemo(() => query.data?.assets ?? [], [query.data]);
 
@@ -41,10 +42,11 @@ export function FrameIoMediaGallery({ productId, frameUrl }: Props) {
       <section className="rounded-2xl border border-border bg-panel p-4">
         <p className="text-sm text-red-400">Unable to load Frame.io media.</p>
         <button
-          onClick={() => query.refetch()}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+          onClick={() => refreshMedia.mutate()}
+          disabled={refreshMedia.isPending}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          {refreshMedia.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           Retry
         </button>
       </section>
@@ -67,10 +69,11 @@ export function FrameIoMediaGallery({ productId, frameUrl }: Props) {
           </a>
         )}
         <button
-          onClick={() => query.refetch()}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+          onClick={() => refreshMedia.mutate()}
+          disabled={refreshMedia.isPending}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          {refreshMedia.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           Retry
         </button>
       </section>
@@ -78,18 +81,44 @@ export function FrameIoMediaGallery({ productId, frameUrl }: Props) {
   }
 
   if (!assets.length) {
-    // No media assets were found for this Frame.io URL.
-    // (message intentionally suppressed — an empty result is expected whenever
-    //  the share has no downloadable media, so we show nothing instead.)
-    return null;
+    return (
+      <section className="rounded-2xl border border-border bg-panel p-4">
+        <p className="text-sm text-muted">No media preview is cached for this Creative URL.</p>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={() => refreshMedia.mutate()}
+            disabled={refreshMedia.isPending}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            {refreshMedia.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Refresh media
+          </button>
+          <a href={frameUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-accent">
+            <ExternalLink className="h-3.5 w-3.5" /> Open Creative URL
+          </a>
+        </div>
+      </section>
+    );
   }
 
   return (
     <>
       <section className="rounded-2xl border border-border bg-panel p-4">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">
-          Product Media
-        </h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-faint">
+            Product Media
+          </h3>
+          <a
+            href={frameUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 truncate text-xs font-medium text-accent hover:underline"
+            title={frameUrl}
+          >
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{frameUrl}</span>
+          </a>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {assets.map((asset, index) => (
             <button

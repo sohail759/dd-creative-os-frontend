@@ -4,6 +4,10 @@ import type {
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
+  Batch,
+  BatchConcept,
+  BatchSyncResult,
+  BatchUploadResult,
   ConceptGroup,
   Creative,
   FetchAnalyticsResponse,
@@ -404,6 +408,118 @@ export const mockApi: ApiClient = {
       meta_ids: product.metaIds,
       meta_error: null,
     };
+  },
+
+  async getBatchSummary(id): Promise<Batch> {
+    await delay(40);
+    const batch = store.get(id);
+    if (!batch) throw new Error(`Batch ${id} not found`);
+    const concepts = (batch.concepts ?? []).map((c) => {
+      const concept = store.get(c.id);
+      const frameOk = !!concept?.frameUrl || !!concept?.metaIds?.ad_id;
+      const copyOk = (concept?.headlines?.length ?? 0) >= 5 &&
+        (concept?.primary_texts?.length ?? 0) >= 5;
+      const deconstructOk = !!concept?.metaIds?.ad_id;
+      const destinationOk = !!concept?.headlines?.length;
+      const creativeOk = deconstructOk && copyOk;
+      const is_ready = frameOk && creativeOk && destinationOk;
+      return {
+        id: c.id,
+        name: c.name,
+        frame_url: concept?.frameUrl ?? null,
+        notion_url: null,
+        readiness: {
+          frame_url: frameOk,
+          creative: creativeOk,
+          destination_url: destinationOk,
+          is_ready,
+        },
+        actions: {
+          sync_required: !frameOk || !destinationOk,
+          can_run_deconstruct: !deconstructOk,
+          can_run_copywriter: !copyOk,
+          can_upload: is_ready,
+        },
+        meta: {
+          adset_id: concept?.metaIds?.adset_id ?? null,
+          ad_id: concept?.metaIds?.ad_id ?? null,
+          upload_status: concept?.metaState ?? null,
+        },
+        generation_status: (concept?.generationStatus ?? "idle") as BatchConcept["generation_status"],
+        headlines: concept?.headlines ?? [],
+        primary_texts: concept?.primary_texts ?? [],
+        languages: [],
+      };
+    });
+    const ready = concepts.filter((c) => c.readiness.is_ready).length;
+    return {
+      id,
+      name: batch.name,
+      notion_url: null,
+      meta: { adset_id: batch.metaIds?.adset_id ?? null, upload_status: batch.metaState },
+      readiness: {
+        is_ready: concepts.length > 0 && ready === concepts.length,
+        total_concepts: concepts.length,
+        ready_concepts: ready,
+      },
+      concepts,
+    };
+  },
+
+  async syncBatch(id): Promise<BatchSyncResult> {
+    await delay(350);
+    const batch = store.get(id);
+    if (!batch) throw new Error(`Batch ${id} not found`);
+    return { id, name: batch.name, synced_at: nowIso() };
+  },
+
+  async runDeconstruct(conceptId) {
+    await delay(300);
+    const concept = store.get(conceptId);
+    if (!concept) throw new Error(`Concept ${conceptId} not found`);
+    return { id: conceptId, ok: true, payload: {} };
+  },
+
+  async runCopywriter(conceptId, force) {
+    await delay(300);
+    const concept = store.get(conceptId);
+    if (!concept && !force) throw new Error(`Concept ${conceptId} not found`);
+    return { id: conceptId, status: "in_progress", job: `mock_${conceptId.slice(0, 8)}` };
+  },
+
+  async uploadConcept(conceptId, payload): Promise<MetaActionResponse> {
+    await delay(250);
+    const concept = store.get(conceptId);
+    if (!concept) throw new Error(`Concept ${conceptId} not found`);
+    concept.metaState = "uploaded_paused";
+    concept.metaIds = {
+      campaign_id: payload?.campaign_id ?? "mock_campaign",
+      adset_id: `adset_${conceptId.slice(0, 8)}`,
+      creative_id: `creative_${conceptId.slice(0, 8)}`,
+      ad_id: `ad_${conceptId.slice(0, 8)}`,
+    };
+    concept.metaError = null;
+    return {
+      id: conceptId,
+      meta_state: "uploaded_paused",
+      message: "Uploaded and paused",
+      meta_ids: concept.metaIds,
+      meta_error: null,
+    };
+  },
+
+  async uploadBatch(batchId): Promise<BatchUploadResult> {
+    await delay(400);
+    const batch = store.get(batchId);
+    if (!batch) throw new Error(`Batch ${batchId} not found`);
+    const results = (batch.concepts ?? []).map((c) => ({
+      id: c.id,
+      ok: true,
+      meta_state: "uploaded_paused",
+      message: "Uploaded and paused",
+      meta_ids: { adset_id: `adset_${batchId.slice(0, 8)}`, ad_id: `ad_${c.id.slice(0, 8)}` },
+    }));
+    return { batch_id: batchId, results };
   },
 
   async getAnalytics(_brand?: string, _limit?: number, _offset?: number) {
