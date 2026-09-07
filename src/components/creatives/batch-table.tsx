@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowUpRight, Check, ExternalLink, Layers3, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import type { Batch, BatchConcept, Creative } from "@/lib/api/types";
 import { useBatchSummary, useRunDeconstruct, useSyncBatch, useUploadBatch, useUploadConcept } from "@/hooks/use-batch";
+import { useConceptRun, formatRunTime } from "@/hooks/use-concept-run";
 
 function dispatchMessage(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -47,6 +48,9 @@ function ConceptRow({ concept, batchId }: { concept: BatchConcept; batchId: stri
     concept.meta.upload_status ?? "",
   );
   const generationMessage = dispatchMessage(deconstruct.data);
+  // Same run the concept page shows, so a failure is visible in the table too.
+  const { data: run } = useConceptRun(concept.id, { active: isGenerating });
+  const failedStep = run?.progress.find((s) => s.status === "failed");
 
   return (
     <tr className="group border-b border-border/60 bg-panel hover:bg-panel-hover/70">
@@ -57,12 +61,24 @@ function ConceptRow({ concept, batchId }: { concept: BatchConcept; batchId: stri
             <div className="flex items-center gap-2"><span className="truncate text-sm font-bold text-foreground">{concept.name}</span>{isUploaded && <span className="rounded-full border border-accent/30 bg-accent-dim px-2 py-0.5 text-[10px] font-bold text-accent">Uploaded</span>}</div>
             {isGenerating && <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-accent"><Loader2 className="h-3 w-3 animate-spin" />Generating creative…</p>}
             {generationMessage && <p className="mt-1 rounded-md border border-warning/25 bg-warning/[0.07] px-2 py-1.5 text-[10px] leading-relaxed text-warning">{generationMessage}</p>}
+            {!isGenerating && run?.error && (
+              <div className="mt-1 rounded-md border border-danger/30 bg-danger/10 px-2 py-1.5">
+                <p className="flex items-start gap-1 text-[10px] font-semibold leading-relaxed text-danger">
+                  <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+                  <span className="break-words">{run.error}</span>
+                </p>
+                <p className="mt-0.5 pl-4 text-[10px] text-muted">
+                  {failedStep ? `Stopped at "${failedStep.step}" · ` : ""}
+                  {formatRunTime(run.finishedAt ?? run.startedAt)}
+                </p>
+              </div>
+            )}
             <p className="mt-1 truncate text-[11px] capitalize text-faint">{concept.meta.upload_status?.replaceAll("_", " ")}</p>
           </div>
         </div>
       </td>
       <td className="px-4 py-4"><CheckCell ok={concept.readiness.frame_url} label="Creative URL" /></td>
-      <td className="px-4 py-4"><CheckCell ok={concept.readiness.creative} label="Creative Content" /><MiniButton onClick={() => deconstruct.mutate({ batchId, conceptId: concept.id })} pending={isGenerating || deconstruct.isPending} disabled={!concept.readiness.frame_url}>{concept.readiness.creative ? "Re-run Creative" : "Run Creative"}</MiniButton></td>
+      <td className="px-4 py-4"><CheckCell ok={concept.readiness.creative} label="Creative Content" /><MiniButton onClick={() => deconstruct.mutate({ batchId, conceptId: concept.id })} pending={isGenerating || deconstruct.isPending} disabled={!concept.readiness.frame_url}>{concept.readiness.creative ? "Re-Generate Copy" : "Generate Copy"}</MiniButton></td>
       <td className="px-4 py-4"><CheckCell ok={concept.readiness.destination_url} label="Destination" /></td>
       <td className="sticky right-0 z-10 min-w-[180px] bg-panel px-5 py-4 text-right group-hover:bg-[#1b1c20]">
         <div className="flex items-center justify-end gap-2">

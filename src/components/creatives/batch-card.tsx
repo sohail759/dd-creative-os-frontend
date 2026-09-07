@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useConceptRun, formatRunTime, formatDuration } from "@/hooks/use-concept-run";
 import type {
   Batch,
   BatchConcept,
@@ -118,6 +119,10 @@ function ConceptSection({
     concept.meta.upload_status ?? "",
   );
   const generationMessage = dispatchMessage(runDeconstruct.data);
+  // The last run for this concept, so a failure is visible on the card and
+  // not only on the concept page. Polls while it is generating.
+  const { data: run } = useConceptRun(concept.id, { active: isGenerating });
+  const failedStep = run?.progress.find((s) => s.status === "failed");
 
   const rowFor = (key: keyof ConceptReadiness) =>
     CHECK_ORDER.find((c) => c.key === key)!;
@@ -168,6 +173,19 @@ function ConceptSection({
           {generationMessage}
         </p>
       )}
+      {!isGenerating && run?.error && (
+        <div className="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2">
+          <p className="flex items-start gap-1.5 text-xs font-semibold text-danger">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="break-words">{run.error}</span>
+          </p>
+          <p className="mt-1 pl-5 text-[11px] text-muted">
+            {failedStep ? `Stopped at "${failedStep.step}" · ` : ""}
+            {formatRunTime(run.finishedAt ?? run.startedAt)}
+            {run.durationSeconds ? ` · took ${formatDuration(run.durationSeconds)}` : ""}
+          </p>
+        </div>
+      )}
       <div className="mt-3 flex flex-col gap-2">
         <ReadinessRow
           label={frameRow.label}
@@ -189,7 +207,7 @@ function ConceptSection({
               pending={isGenerating || runDeconstruct.isPending}
               disabled={!readiness.frame_url}
             >
-              {readiness.creative ? "Re-run Creative" : "Run Creative"}
+              {readiness.creative ? "Re-Generate Copy" : "Generate Copy"}
             </ActionButton>
           }
         />
