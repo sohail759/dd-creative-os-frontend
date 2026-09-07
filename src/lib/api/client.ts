@@ -9,6 +9,8 @@ import type {
   ConceptDetail,
   ConceptListResponse,
   ConceptRunResult,
+  ConceptVariation,
+  CopyRun,
   ConceptRunDispatch,
   Creative,
   CreativeCounts,
@@ -43,6 +45,8 @@ export interface ApiClient {
   getProduct(id: string): Promise<Creative>;
   generateProduct(id: string, options?: GenerateOptions): Promise<GenerationResponse>;
   getProductStatus(id: string): Promise<Creative>;
+  getConceptRun(id: string): Promise<CopyRun>;
+  getConceptVariations(id: string): Promise<ConceptVariation[]>;
   getProductCounts(brand?: string, phase?: string): Promise<CreativeCounts>;
 
   getCopywriterPrompt(): Promise<PromptSetting>;

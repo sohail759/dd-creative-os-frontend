@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import type { ConceptSummary } from "@/lib/api/types";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Chip } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 
 export function ConceptCard({ concept }: { concept: ConceptSummary }) {
   return (
@@ -33,6 +34,32 @@ export function ConceptCard({ concept }: { concept: ConceptSummary }) {
           {concept.awareness && <Chip label={concept.awareness} />}
         </div>
       )}
+
+      {concept.variations?.length ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1">
+          <span className="mr-0.5 text-[10px] uppercase tracking-wider text-faint">
+            Variations
+          </span>
+          {concept.variations.map((variation) => (
+            <span
+              key={variation.id}
+              title={
+                variation.hasCopy
+                  ? `${variation.name} — ${variation.headlineCount} headlines`
+                  : `${variation.name} — no copy yet`
+              }
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold",
+                variation.hasCopy
+                  ? "border-success/30 bg-success/10 text-success"
+                  : "border-border bg-white/5 text-faint",
+              )}
+            >
+              {variation.language}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-auto flex items-center justify-end gap-1 pt-3 text-xs font-medium text-muted opacity-0 transition-opacity group-hover:opacity-100">
         Open concept

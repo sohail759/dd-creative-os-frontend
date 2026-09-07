@@ -56,10 +56,23 @@ export const CREATIVE_PHASES = [
 ] as const;
 
 /** Light summary of a concept nested under a batch product. */
+/** Compact per-language summary shown on a concept card. */
+export interface VariationSummary {
+  id: string;
+  name: string;
+  language: string;
+  phase?: string | null;
+  status?: string | null;
+  hasCopy: boolean;
+  headlineCount: number;
+}
+
 export interface ConceptSummary {
   id: string;
   name: string;
   status: CreativeStatus;
+  /** The concept's Level C variations, ENG first. */
+  variations?: VariationSummary[];
   /** Notion `Phase`, e.g. "Write". Sent by the API for every level. */
   phase?: string | null;
   angle?: string | null;
@@ -658,4 +671,58 @@ export interface ConceptRunDispatchResult {
   job?: string;
   ok?: boolean;
   payload?: unknown;
+}
+
+/** Status of one step in a copywriting run. */
+export type RunStepStatus =
+  | "pending"
+  | "in_progress"
+  | "done"
+  | "failed"
+  | "skipped";
+
+/** One step of a copywriting run, as recorded by the backend. */
+export interface RunStep {
+  key: string;
+  /** One-line description, e.g. "Writing headlines and primary text". */
+  step: string;
+  status: RunStepStatus;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  error?: string | null;
+}
+
+/** Overall state of the most recent copywriting run for a concept. */
+export type RunStatus = "none" | "running" | "ok" | "blocked" | "failed";
+
+/**
+ * The most recent copywriting run for a concept.
+ *
+ * Times arrive as ISO-8601 with an explicit UTC offset; they are rendered in
+ * the viewer's own timezone.
+ */
+export interface CopyRun {
+  conceptId: string;
+  runId?: string | null;
+  status: RunStatus;
+  progress: RunStep[];
+  error?: string | null;
+  errorCode?: string | null;
+  retryable?: boolean | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationSeconds?: number | null;
+}
+
+/** A Level C variation of a concept — one language, its own copy. */
+export interface ConceptVariation {
+  id: string;
+  name: string;
+  language: string;
+  phase?: string | null;
+  status?: string | null;
+  headlines: string[];
+  primaryTexts: string[];
+  frameUrl?: string | null;
+  generatedAt?: string | null;
 }

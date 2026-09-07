@@ -259,6 +259,41 @@ export const mockApi: ApiClient = {
     return { ...product };
   },
 
+  async getConceptRun(id) {
+    await delay(60);
+    return {
+      conceptId: id,
+      runId: null,
+      status: "none" as const,
+      progress: [],
+      error: null,
+      errorCode: null,
+      retryable: null,
+      startedAt: null,
+      finishedAt: null,
+      durationSeconds: null,
+    };
+  },
+
+  async getConceptVariations(id) {
+    await delay(60);
+    const product = store.get(id);
+    if (!product) return [];
+    return [
+      {
+        id: `${id}-eng`,
+        name: `${product.name} ENG`,
+        language: "ENG",
+        phase: product.phase ?? null,
+        status: null,
+        headlines: product.headlines ?? [],
+        primaryTexts: product.primary_texts ?? [],
+        frameUrl: product.frameUrl ?? null,
+        generatedAt: product.generatedAt ?? null,
+      },
+    ];
+  },
+
   async getCopywriterPrompt(): Promise<PromptSetting> {
     await delay(30);
     const value = mockPrompt.value || ""

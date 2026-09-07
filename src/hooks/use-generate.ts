@@ -27,6 +27,10 @@ export function useGenerateProduct() {
       // Pin the creative to `in_progress` locally so the progressive pipeline
       // survives refetches while the backend worker catches up.
       markGenerating(id);
+      // Drop the PREVIOUS run from the cache. Left in place it renders as the
+      // current one — every step already ticked — until the first poll of the
+      // new run lands.
+      queryClient.removeQueries({ queryKey: ["concept-run", id] });
     },
     onSuccess: (res: GenerationResponse) => {
       // Optimistically mark the creative as generating; the real terminal
@@ -64,6 +68,7 @@ export function useGenerateProduct() {
         old ? { ...old, ...generating } : old,
       );
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["concept-run", res.id] });
     },
     onError: (error: Error, variables) => {
       // The trigger failed — drop the local pin so the real state shows.

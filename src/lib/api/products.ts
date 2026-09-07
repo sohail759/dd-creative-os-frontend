@@ -25,6 +25,10 @@ import type {
   UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
+  ConceptVariation,
+  CopyRun,
+  RunStatus,
+  RunStepStatus,
 } from "./types";
 
 /**
@@ -126,6 +130,17 @@ function toConceptSummary(raw: RawCreative): ConceptSummary {
     phase: (raw.phase as string | null) ?? undefined,
     angle: (raw.angle as string | null) ?? undefined,
     awareness: (raw.awareness as string | null) ?? undefined,
+    variations: Array.isArray(raw.variations)
+      ? (raw.variations as Array<Record<string, unknown>>).map((v) => ({
+          id: String(v.id ?? ""),
+          name: String(v.name ?? ""),
+          language: String(v.language ?? ""),
+          phase: (v.phase as string | null) ?? null,
+          status: (v.status as string | null) ?? null,
+          hasCopy: Boolean(v.has_copy),
+          headlineCount: Number(v.headline_count ?? 0),
+        }))
+      : undefined,
   };
 }
 
@@ -225,6 +240,72 @@ export const httpApi: ApiClient = {
       `/v1/products/${encodeURIComponent(id)}/status`,
     );
     return toCreative(res);
+  },
+
+  async getConceptRun(id) {
+    const res = await request<{
+      concept_id: string;
+      run_id?: string | null;
+      status: RunStatus;
+      progress: Array<{
+        key: string;
+        step: string;
+        status: RunStepStatus;
+        started_at?: string | null;
+        finished_at?: string | null;
+        error?: string | null;
+      }>;
+      error?: string | null;
+      error_code?: string | null;
+      retryable?: boolean | null;
+      started_at?: string | null;
+      finished_at?: string | null;
+      duration_seconds?: number | null;
+    }>(`/v1/products/${encodeURIComponent(id)}/run`);
+    return {
+      conceptId: res.concept_id,
+      runId: res.run_id ?? null,
+      status: res.status,
+      progress: (res.progress ?? []).map((s) => ({
+        key: s.key,
+        step: s.step,
+        status: s.status,
+        startedAt: s.started_at ?? null,
+        finishedAt: s.finished_at ?? null,
+        error: s.error ?? null,
+      })),
+      error: res.error ?? null,
+      errorCode: res.error_code ?? null,
+      retryable: res.retryable ?? null,
+      startedAt: res.started_at ?? null,
+      finishedAt: res.finished_at ?? null,
+      durationSeconds: res.duration_seconds ?? null,
+    } satisfies CopyRun;
+  },
+
+  async getConceptVariations(id) {
+    const res = await request<Array<{
+      id: string;
+      name: string;
+      language: string;
+      phase?: string | null;
+      status?: string | null;
+      headlines: string[];
+      primary_texts: string[];
+      frame_url?: string | null;
+      generated_at?: string | null;
+    }>>(`/v1/products/${encodeURIComponent(id)}/variations`);
+    return res.map((v) => ({
+      id: v.id,
+      name: v.name,
+      language: v.language,
+      phase: v.phase ?? null,
+      status: v.status ?? null,
+      headlines: v.headlines ?? [],
+      primaryTexts: v.primary_texts ?? [],
+      frameUrl: v.frame_url ?? null,
+      generatedAt: v.generated_at ?? null,
+    })) satisfies ConceptVariation[];
   },
 
   async getCopywriterPrompt() {
