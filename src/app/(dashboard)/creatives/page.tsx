@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LayoutGrid, RefreshCw, Search, Table2 } from "lucide-react";
 import { CREATIVE_PHASES } from "@/lib/api/types";
 import {
   useProducts,
 } from "@/hooks/use-products";
-import { useGenerateProduct } from "@/hooks/use-generate";
 import { BatchCard } from "@/components/creatives/batch-card";
 import { BatchTable } from "@/components/creatives/batch-table";
 import {
@@ -48,8 +47,6 @@ export default function CreativesPage() {
     phaseFilter === "all" ? undefined : phaseFilter,
     searchFilter || undefined
   );
-  const autoTrigger = useGenerateProduct();
-  const triggeredRef = useRef<Set<string>>(new Set());
 
   function handlePhaseChange(value: PhaseFilterValue) {
     setPhaseFilter(value);
@@ -95,24 +92,25 @@ export default function CreativesPage() {
     [items],
   );
 
-  // Existing in-progress creatives without copy yet: the backend webhook may
-  // already have started generation. Trigger it and poll for the result.
-  useEffect(() => {
-    const pending =
-      items?.filter(
-        (p) =>
-          (p.parentItem?.length ?? 0) > 0 &&
-          p.phase === "Write" &&
-          p.status === "in_progress" &&
-          (p.generationStatus ?? "idle") === "idle" &&
-          p.headlines.length === 0 &&
-          !triggeredRef.current.has(p.id),
-      ) ?? [];
-    for (const p of pending) {
-      triggeredRef.current.add(p.id);
-      autoTrigger.mutate({ id: p.id, showErrorToast: false });
-    }
-  }, [items, autoTrigger]);
+  // NOTE: this page used to auto-start generation for every visible creative
+  // that looked unstarted (phase Write, in_progress, idle, no copy), from a
+  // `useEffect` keyed on `items`. Three things made that unsafe:
+  //
+  //   1. It scanned the whole loaded list, not the batch the user acted on.
+  //   2. Its `triggeredRef` guard was in-memory, so it reset on every mount,
+  //      navigation, refresh and hot reload — the same creative could be
+  //      re-fired any number of times.
+  //   3. It fed itself. `useGenerateProduct.onSuccess` calls setQueriesData +
+  //      invalidateQueries on ["products"], and marking a creative in_progress
+  //      turns on the 4s `refetchInterval` in use-products.ts. Every one of
+  //      those produced a fresh `items` reference, which re-ran the effect.
+  //
+  // On 2026-09-05 this generated 24 concepts across six batches the user never
+  // touched — including four Level C language pages the backend rejects
+  // outright. Real model spend, none of it asked for.
+  //
+  // Generation is explicit now: the Generate button on each card. Do not
+  // reintroduce a render-triggered mutation here.
 
   return (
     <div className="animate-fade-in-up">

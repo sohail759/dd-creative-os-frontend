@@ -26,7 +26,15 @@ function invalidateBatch(
   queryClient: ReturnType<typeof useQueryClient>,
   batchId?: string,
 ) {
-  if (batchId) queryClient.invalidateQueries({ queryKey: ["batch", batchId] });
+  // Scope to the batch we actually changed. This used to invalidate the whole
+  // ["batch"] key as well, so syncing or generating on one batch refetched
+  // every batch query in the cache.
+  if (batchId) {
+    queryClient.invalidateQueries({ queryKey: ["batch", batchId] });
+    return;
+  }
+  // No batch known (some callers only have a concept id) — fall back to
+  // refreshing every batch query, which is the only correct option here.
   queryClient.invalidateQueries({ queryKey: ["batch"] });
 }
 

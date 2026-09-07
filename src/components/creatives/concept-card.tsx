@@ -19,8 +19,16 @@ export function ConceptCard({ concept }: { concept: ConceptSummary }) {
         <StatusBadge status={concept.status} className="shrink-0" />
       </div>
 
-      {(concept.angle || concept.awareness) && (
+      {(concept.phase || concept.angle || concept.awareness) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {/* Same phase chip the batch card uses, so a phase reads the same
+              wherever it appears. */}
+          {concept.phase && (
+            <Chip
+              label={concept.phase}
+              className="border-blue-500/30 bg-blue-500/10 text-blue-400"
+            />
+          )}
           {concept.angle && <Chip label={concept.angle} />}
           {concept.awareness && <Chip label={concept.awareness} />}
         </div>

@@ -121,6 +121,9 @@ function toConceptSummary(raw: RawCreative): ConceptSummary {
     id: String(raw.id),
     name: String(raw.name ?? ""),
     status: (raw.status ?? "not_started") as CreativeStatus,
+    // The API sends `phase` on every level; it was simply being dropped here,
+    // so a concept could never show the phase its batch does.
+    phase: (raw.phase as string | null) ?? undefined,
     angle: (raw.angle as string | null) ?? undefined,
     awareness: (raw.awareness as string | null) ?? undefined,
   };

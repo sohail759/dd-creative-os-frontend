@@ -32,17 +32,27 @@ export const STATUS_LABELS: Record<CreativeStatus, string> = {
   revision: "Revision",
 };
 
+/** Every phase that actually occurs in the database, most common first.
+ *
+ * Checked against all 14,138 records on 2026-09-06. `Analyse`, `Briefing`,
+ * `Translate`, `Framing` and `Ideation` were missing, so filtering could not
+ * reach the 90 batches sitting in them — they simply had no option. */
 export const CREATIVE_PHASES = [
-  "Testing",
   "Active",
-  "Launch",
+  "Testing",
+  "Archived",
   "Editing",
   "Iterate",
   "Write",
-  "Archived",
-  "Upload",
-  "Filming",
   "Not started",
+  "Upload",
+  "Launch",
+  "Analyse",
+  "Briefing",
+  "Translate",
+  "Filming",
+  "Framing",
+  "Ideation",
 ] as const;
 
 /** Light summary of a concept nested under a batch product. */
@@ -50,6 +60,8 @@ export interface ConceptSummary {
   id: string;
   name: string;
   status: CreativeStatus;
+  /** Notion `Phase`, e.g. "Write". Sent by the API for every level. */
+  phase?: string | null;
   angle?: string | null;
   awareness?: string | null;
 }
@@ -99,7 +111,10 @@ export interface Creative {
   generationUpdatedAt?: string | null;
   model?: string | null;
   frameUrl?: string | null;
-  frameUrlSource?: "notion" | "child" | "override" | "missing";
+  /** Where the media came from. `"file"` is an uploaded `File (C)` — a
+   *  Notion-hosted signed URL that expires within the hour, so it is fetched
+   *  fresh rather than trusted from storage. */
+  frameUrlSource?: "notion" | "child" | "override" | "file" | "missing";
   metaState?: MetaState;
   metaIds?: Record<string, string>;
   metaError?: string | null;
