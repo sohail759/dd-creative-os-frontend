@@ -68,7 +68,13 @@ export function MetaRunPanel({
     ? (runs ?? []).find((r) => r.kind === kind) ?? null
     : data?.run ?? null;
 
-  if (!run && !active && !data?.meta_error) {
+  // `meta_error` describes the CONCEPT, not this panel's half of it. Letting
+  // it fall through here meant a failed UPLOAD made the LAUNCH panel skip its
+  // empty state and render "Starting…" with a spinner — a launch nobody had
+  // triggered, on concepts with zero launch runs. A panel pinned to one kind
+  // shows an error only when that kind has actually run.
+  const errorBelongsHere = Boolean(data?.meta_error) && !kind;
+  if (!run && !active && !errorBelongsHere) {
     if (!alwaysShow) return null;
     return (
       <div className="rounded-lg border border-dashed border-border bg-panel/50 p-3">
