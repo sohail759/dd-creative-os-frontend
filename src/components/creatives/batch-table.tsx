@@ -168,7 +168,7 @@ function ConceptRow({ concept, batchId, batchPhase }: { concept: BatchConcept; b
       <td className="px-4 py-4"><CheckCell ok={concept.readiness.frame_url} label="Creative URL" /></td>
       <td className="px-4 py-4"><CheckCell ok={concept.readiness.creative} label="Creative Content" />{canGenerateCopy(concept.phase, concept.readiness.creative) && <MiniButton onClick={() => deconstruct.mutate({ batchId, conceptId: concept.id })} pending={isGenerating || deconstruct.isPending} disabled={copyGenerationBlocked(concept.readiness.frame_url)} title={copyGenerationBlocked(concept.readiness.frame_url) ? "Needs a Creative URL first — sync, or add one in Notion then sync" : undefined}>{concept.readiness.creative ? "Re-Generate Copy" : "Generate Copy"}</MiniButton>}</td>
       <td className="px-4 py-4">
-        <CheckCell ok={concept.readiness.destination_url} label="Destination" />
+        <CheckCell ok={concept.readiness.destination_url} label="Landing Page" />
         {concept.destination_url && (
           <a
             href={concept.destination_url}
@@ -315,7 +315,7 @@ export function BatchTable({ batches }: { batches: Creative[] }) {
       <div className="flex items-center justify-between border-b border-border bg-surface/70 px-5 py-3"><div><p className="text-sm font-bold text-foreground">Batch workflow</p><p className="text-xs text-faint">Batches with their nested concepts and required actions</p></div><span className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs font-semibold text-muted">{batches.length} {batches.length === 1 ? "batch" : "batches"}</span></div>
       <div className="custom-scrollbar max-h-[calc(100vh-250px)] min-h-[360px] overflow-auto">
         <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-left">
-          <thead className="sticky top-0 z-30 bg-[#121316]/95 backdrop-blur-xl"><tr className="text-[10px] font-bold uppercase tracking-[0.14em] text-faint"><th className="sticky left-0 z-40 w-[280px] border-b border-border bg-[#121316] px-6 py-3">Batch / Concept</th><th className="w-[155px] border-b border-border px-4 py-3">Creative URL</th><th className="w-[175px] border-b border-border px-4 py-3">Deconstruct</th><th className="w-[175px] border-b border-border px-4 py-3">Copywriter</th><th className="w-[155px] border-b border-border px-4 py-3">Destination URL</th><th className="sticky right-0 z-40 w-[185px] border-b border-border bg-[#121316] px-5 py-3 text-right">Concept actions</th></tr></thead>
+          <thead className="sticky top-0 z-30 bg-[#121316]/95 backdrop-blur-xl"><tr className="text-[10px] font-bold uppercase tracking-[0.14em] text-faint"><th className="sticky left-0 z-40 w-[280px] border-b border-border bg-[#121316] px-6 py-3">Batch / Concept</th><th className="w-[155px] border-b border-border px-4 py-3">Creative URL</th><th className="w-[175px] border-b border-border px-4 py-3">Deconstruct</th><th className="w-[175px] border-b border-border px-4 py-3">Copywriter</th><th className="w-[155px] border-b border-border px-4 py-3">Landing Page URL</th><th className="sticky right-0 z-40 w-[185px] border-b border-border bg-[#121316] px-5 py-3 text-right">Concept actions</th></tr></thead>
           <tbody>{batches.map((batch) => <BatchTree key={batch.id} creative={batch} />)}</tbody>
         </table>
       </div>

@@ -47,7 +47,7 @@ import {
 const CHECK_ORDER: { key: keyof ConceptReadiness; label: string }[] = [
   { key: "frame_url", label: "Creative URL" },
   { key: "creative", label: "Creative Content" },
-  { key: "destination_url", label: "Destination URL" },
+  { key: "destination_url", label: "Landing Page URL" },
 ];
 
 function dispatchMessage(payload: unknown): string | null {

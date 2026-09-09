@@ -590,7 +590,7 @@ export interface ConceptReadiness {
 
 /** Which user actions are available for a concept based on its readiness. */
 export interface ConceptActions {
-  /** Frame URL or Destination URL missing -> require a Notion sync. */
+  /** Creative URL or Landing Page URL missing -> require a Notion sync. */
   sync_required: boolean;
   can_run_deconstruct: boolean;
   can_run_copywriter: boolean;

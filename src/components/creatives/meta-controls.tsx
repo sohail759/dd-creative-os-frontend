@@ -400,7 +400,7 @@ function UploadForm({
           required
         />
         <Field
-          label="Destination URL"
+          label="Landing Page URL"
           value={form.link_url}
           onChange={(v) => setForm((s) => ({ ...s, link_url: v }))}
           required
@@ -443,7 +443,7 @@ function UploadForm({
             const image = (form.image || "").trim();
             const video = (form.video || "").trim();
             if (!form.campaign_id || !form.page_id || !link) {
-              setValidationError("Campaign, Page, and Destination URL are required.");
+              setValidationError("Campaign, Page, and Landing Page URL are required.");
               return;
             }
             if (!image && !video) {
