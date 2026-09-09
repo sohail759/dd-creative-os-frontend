@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useSearchParams } from "next/navigation";
 import { LayoutGrid, RefreshCw, Search, Table2 } from "lucide-react";
 import { CREATIVE_PHASES } from "@/lib/api/types";
@@ -64,23 +65,24 @@ export default function CreativesPage() {
     setSearchInput(value);
   }
 
+  // The debounce is the hook's job; this effect only applies the settled
+  // value. `searchParams` is read from the location inside rather than being
+  // a dependency: it is a new object on every render, so listing it re-ran
+  // this timer constantly and the 300ms wait effectively never elapsed while
+  // anything else on the page was updating.
+  const debouncedSearch = useDebouncedValue(searchInput.trim(), 300);
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const value = searchInput.trim();
-      setSearchFilter(value);
+    setSearchFilter(debouncedSearch);
 
-      const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set("q", value);
-      } else {
-        params.delete("q");
-      }
-      const query = params.toString();
-      window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
-    }, 300);
-
-    return () => window.clearTimeout(handle);
-  }, [searchInput, searchParams]);
+    const params = new URLSearchParams(window.location.search);
+    if (debouncedSearch) {
+      params.set("q", debouncedSearch);
+    } else {
+      params.delete("q");
+    }
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
+  }, [debouncedSearch]);
 
   // First 100 items of the current filter, most recently edited first.
   const items = useMemo(() => data?.pages.flat() ?? [], [data]);

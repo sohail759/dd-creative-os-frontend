@@ -13,7 +13,26 @@ import {
   formatRunTime,
   formatDuration,
 } from "@/hooks/use-concept-run";
-import type { CopyRun, RunStep } from "@/lib/api/types";
+import type { CopyRun, MetaRun, RunStep } from "@/lib/api/types";
+
+/**
+ * What the step list and failure banner actually need.
+ *
+ * A copywriting run and a Meta upload/launch run carry different ids and
+ * different step names, but the same shape of progress — so they share one
+ * renderer instead of a second near-identical copy.
+ */
+export type AnyRun = {
+  status: CopyRun["status"];
+  progress: RunStep[];
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationSeconds?: number | null;
+  retryable?: boolean | null;
+};
+
+export type { MetaRun };
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,7 +59,7 @@ function StepIcon({ status }: { status: RunStep["status"] }) {
   }
 }
 
-export function RunSteps({ run }: { run: CopyRun }) {
+export function RunSteps({ run }: { run: AnyRun }) {
   if (!run.progress.length) return null;
   return (
     <ul className="mt-3 space-y-1.5">
@@ -82,7 +101,7 @@ export function RunSteps({ run }: { run: CopyRun }) {
 }
 
 /** Failure banner for the most recent run, with when it ran. */
-export function RunError({ run }: { run: CopyRun }) {
+export function RunError({ run }: { run: AnyRun }) {
   if (!run.error) return null;
   return (
     <div className="rounded-lg border border-danger/30 bg-danger/10 p-3">
@@ -103,7 +122,7 @@ export function RunError({ run }: { run: CopyRun }) {
 }
 
 /** When the run started or last finished, in the viewer's timezone. */
-export function RunTiming({ run }: { run: CopyRun }) {
+export function RunTiming({ run }: { run: AnyRun }) {
   if (run.status === "none") return null;
   const running = run.status === "running";
   return (

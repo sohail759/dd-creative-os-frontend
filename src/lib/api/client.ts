@@ -22,6 +22,7 @@ import type {
   GenerationResponse,
   GenerateOptions,
   MetaActionResponse,
+  CampaignAds,
   MetaProgress,
   MetaUploadOptions,
   MetaUploadPayload,
@@ -56,6 +57,7 @@ export interface ApiClient {
   getFrameAssets(id: string, refresh?: boolean): Promise<FrameAssetsResponse>;
   getUploadOptions(id: string): Promise<MetaUploadOptions>;
   getMetaProgress(id: string): Promise<MetaProgress>;
+  getCampaignAds(campaignId: string, brand: string): Promise<CampaignAds>;
   uploadProduct(id: string, payload: MetaUploadPayload): Promise<MetaActionResponse>;
   launchProduct(id: string): Promise<MetaActionResponse>;
 

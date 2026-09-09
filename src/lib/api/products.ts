@@ -4,6 +4,7 @@ import type {
   AgentConfigUpdate,
   AgentListResponse,
   AnalyticsResponse,
+  CampaignAds,
   Batch,
   BatchSyncResult,
   BatchUploadResult,
@@ -19,6 +20,8 @@ import type {
   GenerationResponse,
   MetaActionResponse,
   MetaProgress,
+  MetaRunKind,
+  MetaState,
   MetaUploadOptions,
   ProductAnalyticsResponse,
   PromptSetting,
@@ -90,7 +93,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const next = encodeURIComponent(current);
       window.location.assign(`/sign-in?next=${next}`);
     }
-    throw new Error("Not authenticated");
+    // Carries a status so the query client's retry rule can see it is a 401
+    // and stop. A bare Error has none, so this was retried twice on the way
+    // out — two extra requests while the page was already redirecting.
+    throw new ApiRequestError("Not authenticated", { status: 401 });
   }
   if (!res.ok) {
     let detail = `Request failed with ${res.status}`;
@@ -344,10 +350,80 @@ export const httpApi: ApiClient = {
     );
   },
 
-  async getMetaProgress(id) {
-    return request<MetaProgress>(
-      `/v1/products/${encodeURIComponent(id)}/meta-progress`,
+  async getCampaignAds(campaignId, brand) {
+    return request<CampaignAds>(
+      `/v1/analytics/campaigns/${encodeURIComponent(campaignId)}/ads` +
+        `?brand=${encodeURIComponent(brand)}`,
     );
+  },
+
+  async getMetaProgress(id) {
+    const res = await request<{
+      meta_state: MetaState;
+      progress_stage: string | null;
+      ids: Record<string, string>;
+      meta_error?: string | null;
+      uploaded?: boolean;
+      launched?: boolean;
+      run?: {
+        id: string;
+        concept_id: string;
+        kind: MetaRunKind;
+        status: RunStatus;
+        progress: Array<{
+          key: string;
+          step: string;
+          status: RunStepStatus;
+          started_at?: string | null;
+          finished_at?: string | null;
+          error?: string | null;
+        }>;
+        ids?: Record<string, string>;
+        ad_account_id?: string | null;
+        verified_status?: string | null;
+        error?: string | null;
+        error_details?: string | null;
+        safe_retry?: boolean | null;
+        started_at?: string | null;
+        finished_at?: string | null;
+        duration_ms?: number | null;
+      } | null;
+    }>(`/v1/products/${encodeURIComponent(id)}/meta-progress`);
+
+    const r = res.run;
+    return {
+      meta_state: res.meta_state,
+      progress_stage: res.progress_stage,
+      ids: res.ids ?? {},
+      meta_error: res.meta_error ?? null,
+      uploaded: Boolean(res.uploaded),
+      launched: Boolean(res.launched),
+      run: r
+        ? {
+            id: r.id,
+            conceptId: r.concept_id,
+            kind: r.kind,
+            status: r.status,
+            progress: (r.progress ?? []).map((p) => ({
+              key: p.key,
+              step: p.step,
+              status: p.status,
+              startedAt: p.started_at ?? null,
+              finishedAt: p.finished_at ?? null,
+              error: p.error ?? null,
+            })),
+            ids: r.ids ?? {},
+            adAccountId: r.ad_account_id ?? null,
+            verifiedStatus: r.verified_status ?? null,
+            error: r.error ?? null,
+            errorDetails: r.error_details ?? null,
+            safeRetry: r.safe_retry ?? null,
+            startedAt: r.started_at ?? null,
+            finishedAt: r.finished_at ?? null,
+            durationMs: r.duration_ms ?? null,
+          }
+        : null,
+    };
   },
 
   async uploadProduct(id, payload) {

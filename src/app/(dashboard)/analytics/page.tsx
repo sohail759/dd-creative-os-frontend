@@ -21,7 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { useAnalytics, useFetchAllAnalytics } from "@/hooks/use-analytics";
+import { useCampaignAds, useAnalytics, useFetchAllAnalytics } from "@/hooks/use-analytics";
 import type { AnalyticsKpis, AnalyticsCampaign, AnalyticsAd, AdAnalytics } from "@/lib/api/types";
 
 function ConfirmDialog({
@@ -143,8 +143,18 @@ function formatObjective(objective?: string | null) {
   return objective.replace(/^OUTCOME_/, "");
 }
 
-function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
+function CampaignsTable({
+  campaigns,
+  brand,
+}: {
+  campaigns: AnalyticsCampaign[];
+  brand: string;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Only the open row is fetched. The list response no longer nests every
+  // campaign's ads — that was 7.5MB shipped for a click that usually never
+  // happens.
+  const expandedAds = useCampaignAds(expanded, brand);
 
   if (campaigns.length === 0) {
     return (
@@ -195,7 +205,7 @@ function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
             {campaigns.map((c) => {
               const ca = c.analytics;
               const isExpanded = expanded === c.id;
-              const ads = c.ads ?? [];
+              const ads = isExpanded ? (expandedAds.data?.ads ?? []) : [];
               return (
                 <Fragment key={c.id}>
                   <tr
@@ -229,7 +239,15 @@ function CampaignsTable({ campaigns }: { campaigns: AnalyticsCampaign[] }) {
                   {isExpanded && (
                     <tr className="border-b border-border/50 bg-black/20 last:border-0">
                       <td colSpan={9} className="py-4 pl-8 pr-4">
-                        {ads.length === 0 ? (
+                        {expandedAds.isPending ? (
+                          <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+                            Loading ads…
+                          </div>
+                        ) : expandedAds.isError ? (
+                          <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+                            Could not load this campaign&apos;s ads.
+                          </div>
+                        ) : ads.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
                             {ca ? "No per-ad analytics available for this campaign yet." : "No ads linked to this campaign."}
                           </div>
@@ -476,7 +494,7 @@ export default function AnalyticsPage() {
       <KpiCards kpis={kpis} />
 
       <section className="mt-4">
-        <CampaignsTable campaigns={campaigns} />
+        <CampaignsTable campaigns={campaigns} brand={brand} />
       </section>
 
       <section className="mt-4">

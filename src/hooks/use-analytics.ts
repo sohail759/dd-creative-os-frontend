@@ -31,3 +31,25 @@ export function useFetchAllAnalytics() {
     },
   });
 }
+
+/**
+ * The ads inside one campaign, fetched when its row is expanded.
+ *
+ * The list response used to nest every ad in every campaign — 17,433 ad
+ * objects, 7.5MB of a 22MB payload — for a table that shows one campaign's
+ * ads at a time, and only if clicked. This fetches the one that was opened.
+ */
+export function useCampaignAds(
+  campaignId: string | null,
+  brand: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["campaign-ads", campaignId, brand],
+    queryFn: () => api.getCampaignAds(campaignId!, brand),
+    enabled: Boolean(campaignId) && enabled,
+    // Expanding, collapsing and re-expanding the same row is common; the
+    // second open should be instant.
+    staleTime: 5 * 60 * 1000,
+  });
+}

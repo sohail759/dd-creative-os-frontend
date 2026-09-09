@@ -12,6 +12,7 @@ import {
   useUpdateFrameUrl,
 } from "@/hooks/use-meta-actions";
 import { useMetaProgress } from "@/hooks/use-meta-progress";
+import { MetaRunPanel } from "./meta-run-panel";
 import { UploadProgress } from "./upload-progress";
 
 const META_LABEL: Record<NonNullable<Creative["metaState"]>, string> = {
@@ -54,8 +55,11 @@ export function MetaControls({
     (creative.headlines?.length ?? 0) > 0 &&
     (creative.primary_texts?.length ?? 0) > 0;
 
-  const isUploading = metaState === "uploading";
-  const progress = useMetaProgress(creative.id, isUploading);
+  // Poll while either half is in flight, and for the moment right after a
+  // button press when the server has not opened its run yet.
+  const inFlight = metaState === "uploading" || metaState === "launching";
+  const justPressed = upload.isPending || launch.isPending;
+  useMetaProgress(creative.id, { active: inFlight || justPressed });
 
   // Batch -> Concept rule: only concepts carry a `Parent item` relation and
   // only concepts own upload state. Batches/standalone products never show the
@@ -167,15 +171,10 @@ export function MetaControls({
         </p>
       )}
 
-      {isUploading && progress.data && (
-        <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-          <UploadProgress
-            progressStage={progress.data.progress_stage}
-            metaState={progress.data.meta_state}
-            metaError={progress.data.meta_error}
-          />
-        </div>
-      )}
+      {/* Real per-step progress for both halves, replacing the single
+          `progress_stage` caption that could only ever name one point in
+          the run and said nothing at all during a launch. */}
+      {isConcept && <MetaRunPanel conceptId={creative.id} active={inFlight || justPressed} />}
 
       {showLaunchConfirm && (
         <LaunchConfirmDialog

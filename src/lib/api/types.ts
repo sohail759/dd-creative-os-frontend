@@ -162,11 +162,36 @@ export interface MetaActionResponse {
   meta_error?: string | null;
 }
 
+/** One upload or launch attempt, with its per-step progress. */
+export interface MetaRun {
+  id: string;
+  conceptId: string;
+  /** `upload` or `launch` — the two halves have different steps. */
+  kind: MetaRunKind;
+  status: RunStatus;
+  progress: RunStep[];
+  ids: Record<string, string>;
+  adAccountId?: string | null;
+  verifiedStatus?: string | null;
+  error?: string | null;
+  errorDetails?: string | null;
+  safeRetry?: boolean | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+}
+
+export type MetaRunKind = "upload" | "launch";
+
 export interface MetaProgress {
   meta_state: MetaState;
   progress_stage: string | null;
   ids: Record<string, string>;
   meta_error?: string | null;
+  uploaded: boolean;
+  launched: boolean;
+  /** The newest attempt, upload or launch. Null before anything has run. */
+  run: MetaRun | null;
 }
 
 export interface MetaUploadOptions {
@@ -725,4 +750,16 @@ export interface ConceptVariation {
   primaryTexts: string[];
   frameUrl?: string | null;
   generatedAt?: string | null;
+}
+
+
+/** The ads inside one campaign, fetched when its row is expanded.
+
+    The list response used to nest every ad in every campaign — 17,433 ad
+    objects, 7.5MB — for a table that expands one campaign at a time. */
+export interface CampaignAds {
+  campaign_id: string;
+  ads: AnalyticsAd[];
+  total: number;
+  kpis: AnalyticsKpis;
 }

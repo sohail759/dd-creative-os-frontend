@@ -14,6 +14,7 @@ import type {
   FrameAssetsResponse,
   GenerateOptions,
   MetaActionResponse,
+  CampaignAds,
   MetaProgress,
   MetaUploadOptions,
   MetaUploadPayload,
@@ -392,6 +393,19 @@ export const mockApi: ApiClient = {
     };
   },
 
+  async getCampaignAds(campaignId: string): Promise<CampaignAds> {
+    await delay(40);
+    return {
+      campaign_id: campaignId,
+      ads: [],
+      total: 0,
+      kpis: {
+        spend: 0, impressions: 0, clicks: 0, reach: 0, purchases: 0,
+        purchase_value: 0, ctr: 0, cpc: 0, cpm: 0, roas: 0, cpp: 0,
+      },
+    };
+  },
+
   async getMetaProgress(id): Promise<MetaProgress> {
     await delay(30);
     const product = store.get(id);
@@ -401,6 +415,9 @@ export const mockApi: ApiClient = {
       progress_stage: null,
       ids: product.metaIds ?? {},
       meta_error: product.metaError,
+      uploaded: product.metaState === "uploaded_paused" || product.metaState === "active",
+      launched: product.metaState === "active",
+      run: null,
     };
   },
 

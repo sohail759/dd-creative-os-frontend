@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Brain, Loader2, AlertTriangle, Search, Layers } from "lucide-react";
@@ -45,14 +46,13 @@ export default function IntelligencePage() {
     offset,
   );
 
+  // The debounce lives in the hook; this effect only reacts to the settled
+  // value, so what is delayed and what follows from it stay separate.
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setOffset(0);
-      setQuery(search.trim());
-    }, 300);
-
-    return () => window.clearTimeout(handle);
-  }, [search]);
+    setOffset(0);
+    setQuery(debouncedSearch);
+  }, [debouncedSearch]);
 
   function setBrand(slug: string) {
     const params = new URLSearchParams(searchParams.toString());
