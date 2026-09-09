@@ -130,6 +130,14 @@ export interface Creative {
   frameUrlSource?: "notion" | "child" | "override" | "file" | "missing";
   metaState?: MetaState;
   metaIds?: Record<string, string>;
+  /** Page / campaign / ad set / ad, by name, recorded at upload time. */
+  metaTargets?: {
+    page_name?: string | null;
+    page_id?: string | null;
+    campaign_name?: string | null;
+    adset_name?: string | null;
+    ad_name?: string | null;
+  };
   metaError?: string | null;
 }
 
@@ -388,23 +396,6 @@ export interface AgentConfigUpdate {
 // Uploaded Products types
 // ---------------------------------------------------------------------------
 
-export interface UploadedProduct {
-  creative_id: string;
-  product_name: string;
-  brand_slug: string;
-  meta_state: MetaState;
-  campaign_id?: string | null;
-  adset_id?: string | null;
-  creative_meta_id?: string | null;
-  ad_id?: string | null;
-  ad_account_id?: string | null;
-  ad_name?: string | null;
-  adset_name?: string | null;
-  campaign_name?: string | null;
-  uploaded_at?: string | null;
-  launched_at?: string | null;
-  last_error?: string | null;
-}
 
 export interface ProductAnalyticsResponse {
   creative_id: string;
@@ -617,15 +608,58 @@ export interface CreativeLanguage {
 
 /** Meta upload state persisted per concept. */
 export interface ConceptMeta {
+  campaign_id?: string | null;
   adset_id?: string | null;
   ad_id?: string | null;
+  /** Meta's own AdCreative object, not the Notion concept. */
+  creative_id?: string | null;
+  ad_account_id?: string | null;
+  /** Derived from the Notion phase, not read back from Meta — so there are
+      no object ids behind it. */
+  from_phase?: boolean;
   upload_status?: string | null;
+  /** Server-derived, so a card can render its own state without tracking
+      a mutation locally. */
+  uploaded?: boolean;
+  launched?: boolean;
+  in_flight?: boolean;
+  /** Where the ad went, by name — Ads Manager lists neither by id. */
+  page_id?: string | null;
+  page_name?: string | null;
+  campaign_name?: string | null;
+  adset_name?: string | null;
+  ad_name?: string | null;
+  /** Which Meta step is running, as a printable sentence. */
+  progress_stage?: string | null;
+  progress_label?: string | null;
+  error?: string | null;
 }
 
 /** A concept (Level B) nested under its batch, with derived readiness. */
+export interface BatchConceptRun {
+  status: string;
+  error?: string | null;
+  /** Name of the step that failed, resolved server-side. */
+  failed_step?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_seconds?: number | null;
+}
+
 export interface BatchConcept {
   id: string;
   name: string;
+  /** `Type (A)` — "Image ad" / "Video ad". */
+  ad_type?: string | null;
+  /** The concept's own Notion Phase and Status — not always its batch's. */
+  phase?: string | null;
+  status?: string | null;
+  /**
+   * The concept's last copywriting run, served with the batch so a list view
+   * never asks for it per row. Null when the concept has never been run.
+   * The full step-by-step progress stays on `GET /products/{id}/run`.
+   */
+  run?: BatchConceptRun | null;
   frame_url?: string | null;
   destination_url?: string | null;
   notion_url?: string | null;
@@ -654,12 +688,60 @@ export interface BatchMeta {
 }
 
 /** Normalized batch payload returned by the backend batch endpoints. */
+/** Batch-level upload/launch state, derived on the server.
+
+    The "Upload Batch to Meta" button used to show its loader from a
+    mutation's local state, which is discarded the moment the user navigates
+    away — come back and the button looks idle while the upload is still
+    running. Reading progress from here survives a page change. */
+export interface BatchUploadState {
+  total: number;
+  uploaded: number;
+  launched: number;
+  in_flight: number;
+  all_uploaded: boolean;
+  all_launched: boolean;
+  is_uploading: boolean;
+  failed: string[];
+}
+
+/** What the "Generate Batch Copy" button needs, decided on the server.
+
+    A concept is eligible when it has a Creative URL to work from but no
+    creative content yet. The button stays disabled until every concept has
+    a URL — a partial run leaves the batch half-written. */
+export interface BatchCopyState {
+  total: number;
+  with_creative_url: number;
+  needs_copy: string[];
+  missing_creative_url: string[];
+  generating: number;
+  can_generate: boolean;
+  is_generating: boolean;
+}
+
+export interface BatchSyncState {
+  is_syncing: boolean;
+  /** e.g. "reading concepts". Null between stages. */
+  stage?: string | null;
+  started_at?: string | null;
+}
+
 export interface Batch {
   id: string;
   name: string;
+  /** Notion phase. Gates the batch-level Meta buttons; the per-concept copy
+      buttons read the CONCEPT's phase instead — a batch at Testing can still
+      hold one concept at Write. */
+  phase?: string;
+  status?: string | null;
+  /** Live Notion-sync state, server-derived so it survives navigation. */
+  sync?: BatchSyncState;
   notion_url?: string | null;
   meta: BatchMeta;
   readiness: BatchReadiness;
+  upload: BatchUploadState;
+  copy: BatchCopyState;
   concepts: BatchConcept[];
 }
 
@@ -762,4 +844,35 @@ export interface CampaignAds {
   ads: AnalyticsAd[];
   total: number;
   kpis: AnalyticsKpis;
+}
+
+
+/** Per-concept result of setting a whole batch live. */
+export interface BatchLaunchResult {
+  id: string;
+  launched: number;
+  total: number;
+  results: Array<{
+    id: string;
+    name: string;
+    ok: boolean;
+    error?: string | null;
+    meta_state?: string;
+    message?: string;
+  }>;
+}
+
+
+/** Per-concept result of queueing copywriting across a batch. */
+export interface BatchCopyResult {
+  id: string;
+  queued: number;
+  total: number;
+  results: Array<{
+    id: string;
+    name: string;
+    queued: boolean;
+    reason?: string;
+    job?: string | null;
+  }>;
 }

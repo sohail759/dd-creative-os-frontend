@@ -23,9 +23,13 @@ export default function CreativesPage() {
   const currentPhase = searchParams.get("phase") ?? "";
   const currentSearch = searchParams.get("q") ?? "";
 
-  const initialPhase = (CREATIVE_PHASES as readonly string[]).includes(currentPhase)
-    ? (currentPhase as PhaseFilterValue)
-    : "Write";
+  // "All Phases" unless the URL asks for one. This defaulted to "Write",
+  // so opening /creatives hid every batch that had moved past writing —
+  // including everything waiting to be uploaded or launched.
+  const initialPhase: PhaseFilterValue =
+    currentPhase === "all" || (CREATIVE_PHASES as readonly string[]).includes(currentPhase)
+      ? (currentPhase as PhaseFilterValue)
+      : "all";
 
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilterValue>(initialPhase);
   const [searchInput, setSearchInput] = useState(currentSearch);

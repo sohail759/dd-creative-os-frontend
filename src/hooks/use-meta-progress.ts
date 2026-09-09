@@ -52,6 +52,11 @@ export function useMetaProgress(
     },
     // The point of this query is freshness; a cached value is never useful.
     staleTime: 0,
+    // `refetchOnMount` is false globally, and `staleTime: 0` does not override
+    // it. Without this the concept page opened on whatever was cached before
+    // the upload began and sat there — the progress only appeared after a
+    // manual browser refresh.
+    refetchOnMount: "always",
     retry: false,
   });
 
@@ -67,9 +72,27 @@ export function useMetaProgress(
     if (wasRunning && !stillRunning) {
       queryClient.invalidateQueries({ queryKey: ["product", id] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["uploaded-products"] });
     }
   }, [status, id, queryClient]);
 
   return query;
+}
+
+
+/**
+ * Every upload and launch attempt for a concept, newest first.
+ *
+ * `ad_meta_records` kept one row per creative, so a retry overwrote the
+ * previous attempt and there was no history. Each attempt is its own
+ * document now, which is what lets the page show upload and launch as two
+ * separate panels rather than only whichever ran last.
+ */
+export function useMetaRuns(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["products", id, "meta-runs"],
+    queryFn: () => api.getMetaRuns(id!),
+    enabled: Boolean(id) && enabled,
+    staleTime: 15_000,
+    refetchOnMount: "always",
+  });
 }

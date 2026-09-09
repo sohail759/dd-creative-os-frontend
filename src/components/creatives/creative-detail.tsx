@@ -7,6 +7,8 @@ import type { Creative } from "@/lib/api";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { VariationTabs } from "./variation-tabs";
 import { GenerationSteps, RunPanel } from "./generation-steps";
+import { MetaRunPanel } from "./meta-run-panel";
+import { MetaTargetList } from "./meta-target-list";
 import { GenerateButton } from "./generate-button";
 import { FrameIoMediaGallery } from "./frame-io-media-gallery";
 import { MetaControls } from "./meta-controls";
@@ -195,19 +197,52 @@ export function CreativeDetailView({
               failed — so the step list does not disappear at the moment it
               becomes most useful. It carries the error itself, so the button
               below suppresses its own copy of it. */}
-          <div className="mt-4 flex flex-col gap-4">
-            {data.generationStatus === "in_progress" ? (
-              <div className="rounded-2xl border border-accent/20 bg-accent-dim/40 p-6">
-                <GenerationSteps conceptId={data.id} />
-              </div>
-            ) : (
-              <>
-                <RunPanel conceptId={data.id} />
-                <div className={!hasCopy ? "rounded-2xl border border-border bg-panel p-6" : undefined}>
-                  <GenerateButton creative={data} showRunError={false} />
+          {/* Three independent pieces of work on the same concept, in one
+              responsive row: writing, then upload, then launch. Each keeps
+              its own container so a failure in one does not read as
+              another's. Stacks to a single column on narrow screens. */}
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:items-start">
+            <div className="flex min-w-0 flex-col gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+                Copywriting
+              </p>
+              {data.generationStatus === "in_progress" ? (
+                <div className="rounded-2xl border border-accent/20 bg-accent-dim/40 p-6">
+                  <GenerationSteps conceptId={data.id} />
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <RunPanel conceptId={data.id} />
+                  <div className={!hasCopy ? "rounded-2xl border border-border bg-panel p-6" : undefined}>
+                    <GenerateButton creative={data} showRunError={false} />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+                Meta upload
+              </p>
+              <MetaRunPanel conceptId={data.id} kind="upload" alwaysShow />
+              {/* Where this ad landed: the page and campaign by name, plus
+                  the object ids, each copyable. Sits under Upload because
+                  that is the step that created these objects — a launch only
+                  activates them. Listed once for the whole section, not once
+                  per panel. */}
+              <MetaTargetList
+                className="rounded-lg border border-border bg-panel px-3 py-2.5"
+                targets={data.metaTargets}
+                ids={data.metaIds}
+              />
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-faint">
+                Meta launch
+              </p>
+              <MetaRunPanel conceptId={data.id} kind="launch" alwaysShow />
+            </div>
           </div>
         </section>
       )}

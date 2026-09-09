@@ -23,7 +23,10 @@ import { useState, type ReactNode } from "react";
  *   - **No mutation policy.** An upload creates real objects in a Meta ad
  *     account; a silent automatic retry could create a second ad.
  *
- * Per-query overrides still win: the run-progress hooks set `staleTime: 0`
+ * Per-query overrides still win, but note that `staleTime: 0` alone does NOT
+ * defeat `refetchOnMount: false` — a remounted query serves cache and does
+ * not refetch, however stale it is. A live query must say
+ * `refetchOnMount: "always"` explicitly. The run-progress hooks set `staleTime: 0`
  * and their own `refetchInterval`, because for those a cached value is never
  * the point.
  */

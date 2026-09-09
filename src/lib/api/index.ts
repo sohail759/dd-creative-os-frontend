@@ -34,7 +34,6 @@ export type {
   MetaProgress,
   MetaUploadOptions,
   MetaUploadPayload,
-  UploadedProduct,
    AgentConfig,
    AgentConfigUpdate,
    AgentListResponse,

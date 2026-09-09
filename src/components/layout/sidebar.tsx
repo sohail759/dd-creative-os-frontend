@@ -12,6 +12,7 @@ import {
   Bot,
   Brain,
   LogOut,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,8 +26,13 @@ const BRANDS = [
 const NAV_ITEMS = [
   { label: "Analytics", href: "/analytics", icon: BarChart3 },
   { label: "Intelligence", href: "/intelligence", icon: Brain },
-  { label: "Uploaded Products", href: "/uploaded-products", icon: Upload },
   { label: "Agent Configuration", href: "/agents", icon: Bot },
+];
+
+/** Shown only to admins. The page and the API enforce this too — hiding a
+    link is presentation, not access control. */
+const ADMIN_NAV_ITEMS = [
+  { label: "Users", href: "/users", icon: Users },
 ];
 
 function BrandMark() {
@@ -84,11 +90,18 @@ function BrandSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+function NavList({
+  onNavigate,
+  isAdmin = false,
+}: {
+  onNavigate?: () => void;
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
+  const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const Icon = item.icon;
         const active =
           pathname === item.href || pathname.startsWith(item.href + "/");
@@ -195,7 +208,7 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar px-3">
           <BrandSwitcher />
-          <NavList />
+          <NavList isAdmin={user?.role === "admin"} />
         </div>
         <UserFooter user={user ?? null} />
       </aside>
@@ -219,7 +232,10 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
             </div>
             <div className="flex-1 overflow-y-auto px-3">
               <BrandSwitcher onNavigate={() => setOpen(false)} />
-              <NavList onNavigate={() => setOpen(false)} />
+              <NavList
+                onNavigate={() => setOpen(false)}
+                isAdmin={user?.role === "admin"}
+              />
             </div>
             <UserFooter user={user ?? null} />
           </aside>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Upload, Rocket } from "lucide-react";
-import { useMetaProgress } from "@/hooks/use-meta-progress";
+import { useMetaProgress, useMetaRuns } from "@/hooks/use-meta-progress";
 import { formatRunTime, formatDuration } from "@/hooks/use-concept-run";
 import { RunSteps, RunError, type AnyRun } from "./generation-steps";
 import type { MetaRun } from "@/lib/api/types";
@@ -47,18 +47,41 @@ function KindIcon({ kind }: { kind: MetaRun["kind"] }) {
 
 export function MetaRunPanel({
   conceptId,
+  kind,
   active = false,
+  alwaysShow = false,
 }: {
   conceptId: string;
+  /** Show only this half. Omitted means "whichever ran most recently". */
+  kind?: MetaRun["kind"];
   /** True right after the button is pressed, before the server has a run. */
   active?: boolean;
+  /** Render an empty state rather than nothing, for a fixed layout slot. */
+  alwaysShow?: boolean;
 }) {
   const { data } = useMetaProgress(conceptId, { active });
-  const run = data?.run ?? null;
+  // The latest run overall covers the common case with one request. A panel
+  // pinned to one half needs the history, because the newest run may be the
+  // other kind — an upload panel must not go blank the moment a launch runs.
+  const { data: runs } = useMetaRuns(conceptId, Boolean(kind));
+  const run = kind
+    ? (runs ?? []).find((r) => r.kind === kind) ?? null
+    : data?.run ?? null;
 
-  // Nothing has ever been uploaded, and nothing is happening now. An empty
-  // panel is worse than no panel.
-  if (!run && !active && !data?.meta_error) return null;
+  if (!run && !active && !data?.meta_error) {
+    if (!alwaysShow) return null;
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-panel/50 p-3">
+        <p className="text-xs text-faint">
+          {kind === "launch"
+            ? "Not launched yet."
+            : kind === "upload"
+              ? "Not uploaded yet."
+              : "Nothing has run yet."}
+        </p>
+      </div>
+    );
+  }
 
   if (!run) {
     return (
@@ -113,18 +136,15 @@ export function MetaRunPanel({
         </div>
       ) : null}
 
-      {run.status === "ok" && Object.keys(run.ids).length > 0 ? (
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-[10px]">
-          {Object.entries(run.ids).map(([key, value]) => (
-            <div key={key} className="flex min-w-0 items-baseline gap-1.5">
-              <dt className="shrink-0 uppercase tracking-wide text-faint">
-                {key.replace(/_/g, " ").replace("meta creative", "creative")}
-              </dt>
-              <dd className="truncate tabular-nums text-muted">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      {/* The Meta object ids used to be listed here. They are not any more:
+          this panel is rendered twice on the concept page (upload and
+          launch), and a launch creates no new objects — it activates the ones
+          the upload made — so the same four ids appeared in both panels and
+          again in the target list below, three times over.
+
+          `MetaTargetList` owns them now. It is the same component the batch
+          views use, and it adds what this block could not: the page and
+          campaign NAMES, and a copy button per value. */}
     </div>
   );
 }

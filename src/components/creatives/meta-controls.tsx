@@ -12,7 +12,6 @@ import {
   useUpdateFrameUrl,
 } from "@/hooks/use-meta-actions";
 import { useMetaProgress } from "@/hooks/use-meta-progress";
-import { MetaRunPanel } from "./meta-run-panel";
 import { UploadProgress } from "./upload-progress";
 
 const META_LABEL: Record<NonNullable<Creative["metaState"]>, string> = {
@@ -171,10 +170,9 @@ export function MetaControls({
         </p>
       )}
 
-      {/* Real per-step progress for both halves, replacing the single
-          `progress_stage` caption that could only ever name one point in
-          the run and said nothing at all during a launch. */}
-      {isConcept && <MetaRunPanel conceptId={creative.id} active={inFlight || justPressed} />}
+      {/* Progress is rendered by the concept page, which lays copywriting,
+          upload and launch out as three panels. Rendering it here too put
+          the upload progress on screen twice. */}
 
       {showLaunchConfirm && (
         <LaunchConfirmDialog

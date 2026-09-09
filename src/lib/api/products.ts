@@ -4,6 +4,8 @@ import type {
   AgentConfigUpdate,
   AgentListResponse,
   AnalyticsResponse,
+  BatchCopyResult,
+  BatchLaunchResult,
   CampaignAds,
   Batch,
   BatchSyncResult,
@@ -20,12 +22,12 @@ import type {
   GenerationResponse,
   MetaActionResponse,
   MetaProgress,
+  MetaRun,
   MetaRunKind,
   MetaState,
   MetaUploadOptions,
   ProductAnalyticsResponse,
   PromptSetting,
-  UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
   ConceptVariation,
@@ -195,9 +197,43 @@ function toCreative(raw: RawCreative): Creative {
       raw.meta_ids && typeof raw.meta_ids === "object"
         ? (raw.meta_ids as Record<string, string>)
         : {},
+    metaTargets:
+      raw.meta_targets && typeof raw.meta_targets === "object"
+        ? (raw.meta_targets as Creative["metaTargets"])
+        : {},
     metaError: (raw.meta_error as string | null) ?? null,
   };
 }
+
+/** One `meta_runs` document in the shape the UI uses. */
+function mapMetaRun(r: Record<string, unknown> | null): MetaRun | null {
+  if (!r) return null;
+  const progress = (r.progress ?? []) as Array<Record<string, unknown>>;
+  return {
+    id: String(r.id ?? ""),
+    conceptId: String(r.concept_id ?? ""),
+    kind: r.kind as MetaRunKind,
+    status: r.status as MetaRun["status"],
+    progress: progress.map((p) => ({
+      key: String(p.key ?? ""),
+      step: String(p.step ?? ""),
+      status: p.status as MetaRun["progress"][number]["status"],
+      startedAt: (p.started_at as string) ?? null,
+      finishedAt: (p.finished_at as string) ?? null,
+      error: (p.error as string) ?? null,
+    })),
+    ids: (r.ids ?? {}) as Record<string, string>,
+    adAccountId: (r.ad_account_id as string) ?? null,
+    verifiedStatus: (r.verified_status as string) ?? null,
+    error: (r.error as string) ?? null,
+    errorDetails: (r.error_details as string) ?? null,
+    safeRetry: (r.safe_retry as boolean) ?? null,
+    startedAt: (r.started_at as string) ?? null,
+    finishedAt: (r.finished_at as string) ?? null,
+    durationMs: (r.duration_ms as number) ?? null,
+  };
+}
+
 
 export const httpApi: ApiClient = {
   async getProducts(status, limit, offset, brand, phase, search) {
@@ -350,11 +386,32 @@ export const httpApi: ApiClient = {
     );
   },
 
+  async copywriteBatch(batchId) {
+    return request<BatchCopyResult>(
+      `/v1/products/${encodeURIComponent(batchId)}/copywrite-batch`,
+      { method: "POST" },
+    );
+  },
+
+  async launchBatch(batchId) {
+    return request<BatchLaunchResult>(
+      `/v1/products/${encodeURIComponent(batchId)}/launch-batch`,
+      { method: "POST" },
+    );
+  },
+
   async getCampaignAds(campaignId, brand) {
     return request<CampaignAds>(
       `/v1/analytics/campaigns/${encodeURIComponent(campaignId)}/ads` +
         `?brand=${encodeURIComponent(brand)}`,
     );
+  },
+
+  async getMetaRuns(id) {
+    const rows = await request<Array<Record<string, unknown>>>(
+      `/v1/products/${encodeURIComponent(id)}/meta-runs`,
+    );
+    return (rows ?? []).map(mapMetaRun).filter(Boolean) as MetaRun[];
   },
 
   async getMetaProgress(id) {
@@ -490,12 +547,6 @@ export const httpApi: ApiClient = {
     return request<AnalyticsResponse>(`/v1/analytics?${params}`);
   },
 
-  async getUploadedProducts(brand?: string) {
-    const params = new URLSearchParams();
-    if (brand) params.set("brand", brand);
-    const qs = params.toString();
-    return request<UploadedProduct[]>(`/v1/products/uploaded${qs ? `?${qs}` : ""}`);
-  },
 
   async getProductAnalytics(creativeId: string) {
     return request<ProductAnalyticsResponse>(

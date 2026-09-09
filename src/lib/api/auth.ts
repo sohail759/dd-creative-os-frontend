@@ -12,6 +12,8 @@ export interface AuthUser {
   avatar_url: string | null;
   auth_provider: "email" | "google";
   role: string;
+  /** Approval state: "pending" | "approved" | "blocked". */
+  status: string;
   employee_type: string | null;
   email_verified: boolean;
   created_at: string | null;
@@ -111,4 +113,29 @@ export function googleLoginUrl(nextPath?: string): string {
   if (nextPath) params.set("next", nextPath);
   const qs = params.toString();
   return apiUrl(`/v1/auth/google/login${qs ? `?${qs}` : ""}`);
+}
+
+/** Every account, for the admin table. 403 if the caller is not an admin. */
+export async function listUsers(): Promise<AuthUser[]> {
+  const res = await fetch(apiUrl("/v1/users"), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new AuthApiError(await parseError(res), res.status);
+  return (await res.json()) as AuthUser[];
+}
+
+/** Approve, block, or return an account to pending. */
+export async function setUserStatus(
+  userId: string,
+  status: "approved" | "blocked" | "pending",
+): Promise<AuthUser> {
+  const res = await fetch(apiUrl(`/v1/users/${userId}/status`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new AuthApiError(await parseError(res), res.status);
+  return (await res.json()) as AuthUser;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type ConceptVariation, type CopyRun } from "@/lib/api";
+import { api, type BatchConcept, type ConceptVariation, type CopyRun } from "@/lib/api";
 
 /** Poll interval while a run is in flight. */
 const ACTIVE_MS = 2000;
@@ -44,6 +44,9 @@ export function useConceptRun(
       return active ? ACTIVE_MS : false;
     },
     staleTime: 0,
+    // See `useMetaProgress` — the global `refetchOnMount: false` would
+    // otherwise serve a stale run to a freshly opened concept page.
+    refetchOnMount: "always",
   });
 
   // Fire once per running -> terminal transition.
@@ -116,4 +119,58 @@ export function formatDuration(seconds: number | null | undefined): string {
   const m = Math.floor(whole / 60);
   const s = whole % 60;
   return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+/**
+ * The run a batch list row should render.
+ *
+ * A list view must not call `useConceptRun` per row. The batch page renders
+ * every concept, so 77 rows became 77 requests — 154 with CORS preflights —
+ * queued through the six connections a browser opens per origin. The last
+ * response took 32 seconds for work the server did in 2ms.
+ *
+ * The batch summary already carries each concept's last run, so an idle row
+ * costs nothing. Only a row that is actually generating opens its own query,
+ * because live step-by-step progress is the one thing the batch payload
+ * deliberately leaves out. That is a handful of requests at a time rather
+ * than one per concept on screen.
+ */
+export function useBatchConceptRun(
+  concept: BatchConcept,
+  isGenerating: boolean,
+): {
+  status?: string;
+  error?: string | null;
+  failedStepLabel?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationSeconds?: number | null;
+} {
+  const live = useConceptRun(concept.id, {
+    enabled: isGenerating,
+    active: isGenerating,
+  });
+
+  if (live.data) {
+    const failed = live.data.progress.find((s) => s.status === "failed");
+    return {
+      status: live.data.status,
+      error: live.data.error,
+      failedStepLabel: failed?.step ?? null,
+      startedAt: live.data.startedAt,
+      finishedAt: live.data.finishedAt,
+      durationSeconds: live.data.durationSeconds,
+    };
+  }
+
+  const run = concept.run;
+  if (!run) return {};
+  return {
+    status: run.status,
+    error: run.error,
+    failedStepLabel: run.failed_step ?? null,
+    startedAt: run.started_at,
+    finishedAt: run.finished_at,
+    durationSeconds: run.duration_seconds,
+  };
 }

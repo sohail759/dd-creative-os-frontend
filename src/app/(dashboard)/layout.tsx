@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
+import { destinationFor } from "@/lib/auth-routing";
 
 const SESSION_COOKIE = "cos_session";
 
@@ -37,6 +38,14 @@ export default async function DashboardLayout({
     if (!user) {
       // Fail closed: no validated session -> no protected UI, ever.
       redirect("/sign-in");
+    }
+    // Authenticated is not the same as allowed. A pending or blocked account
+    // holds a perfectly valid session — the backend rejects its data
+    // requests, and this sends it to the page that explains why instead of
+    // rendering an app whose every panel would error.
+    const destination = destinationFor(user);
+    if (destination !== "/creatives") {
+      redirect(destination);
     }
   }
 
