@@ -30,7 +30,7 @@ const WINDOWS = [
   { label: "Last 24 Hours", hours: 24 },
   { label: "Last 3 Days", hours: 72 },
   { label: "Last 7 Days", hours: 168 },
-  { label: "Everything", hours: 0 },
+  { label: "All Time", hours: 0 },
 ] as const;
 
 function sinceIso(hours: number): string | undefined {
