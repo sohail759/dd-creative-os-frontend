@@ -37,7 +37,7 @@ type NavSection = { label: string; entries: NavEntry[]; adminOnly?: boolean };
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    label: "Creativess",
+    label: "Creatives",
     entries: BRANDS.map((b) => ({ label: b.label, href: `/creatives?brand=${b.slug}` })),
   },
   {
