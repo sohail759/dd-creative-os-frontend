@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Creative, type MetaUploadPayload } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { markConceptBusyAnywhere } from "./use-batch";
 
 function patchCreative(
   id: string,
@@ -100,6 +101,9 @@ export function useLaunchProduct() {
     mutationFn: ({ id }: { id: string }) => api.launchProduct(id),
     onMutate: ({ id }) => {
       patchCreative(id, { metaState: "launching", metaError: null }, queryClient);
+      // Also mark it in the batch cache, so the card this was pressed from
+      // shows a loader that survives a navigation.
+      markConceptBusyAnywhere(queryClient, id, "launching");
     },
     onSuccess: (res) => {
       patchCreative(

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useSearchParams } from "next/navigation";
 import { LayoutGrid, RefreshCw, Search, Table2 } from "lucide-react";
 import { CREATIVE_PHASES } from "@/lib/api/types";
 import {
   useProducts,
 } from "@/hooks/use-products";
-import { useGenerateProduct } from "@/hooks/use-generate";
 import { BatchCard } from "@/components/creatives/batch-card";
 import { BatchTable } from "@/components/creatives/batch-table";
 import {
@@ -23,9 +23,13 @@ export default function CreativesPage() {
   const currentPhase = searchParams.get("phase") ?? "";
   const currentSearch = searchParams.get("q") ?? "";
 
-  const initialPhase = (CREATIVE_PHASES as readonly string[]).includes(currentPhase)
-    ? (currentPhase as PhaseFilterValue)
-    : "Write";
+  // "All Phases" unless the URL asks for one. This defaulted to "Write",
+  // so opening /creatives hid every batch that had moved past writing —
+  // including everything waiting to be uploaded or launched.
+  const initialPhase: PhaseFilterValue =
+    currentPhase === "all" || (CREATIVE_PHASES as readonly string[]).includes(currentPhase)
+      ? (currentPhase as PhaseFilterValue)
+      : "all";
 
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilterValue>(initialPhase);
   const [searchInput, setSearchInput] = useState(currentSearch);
@@ -48,8 +52,6 @@ export default function CreativesPage() {
     phaseFilter === "all" ? undefined : phaseFilter,
     searchFilter || undefined
   );
-  const autoTrigger = useGenerateProduct();
-  const triggeredRef = useRef<Set<string>>(new Set());
 
   function handlePhaseChange(value: PhaseFilterValue) {
     setPhaseFilter(value);
@@ -67,23 +69,24 @@ export default function CreativesPage() {
     setSearchInput(value);
   }
 
+  // The debounce is the hook's job; this effect only applies the settled
+  // value. `searchParams` is read from the location inside rather than being
+  // a dependency: it is a new object on every render, so listing it re-ran
+  // this timer constantly and the 300ms wait effectively never elapsed while
+  // anything else on the page was updating.
+  const debouncedSearch = useDebouncedValue(searchInput.trim(), 300);
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const value = searchInput.trim();
-      setSearchFilter(value);
+    setSearchFilter(debouncedSearch);
 
-      const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set("q", value);
-      } else {
-        params.delete("q");
-      }
-      const query = params.toString();
-      window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
-    }, 300);
-
-    return () => window.clearTimeout(handle);
-  }, [searchInput, searchParams]);
+    const params = new URLSearchParams(window.location.search);
+    if (debouncedSearch) {
+      params.set("q", debouncedSearch);
+    } else {
+      params.delete("q");
+    }
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
+  }, [debouncedSearch]);
 
   // First 100 items of the current filter, most recently edited first.
   const items = useMemo(() => data?.pages.flat() ?? [], [data]);
@@ -95,24 +98,25 @@ export default function CreativesPage() {
     [items],
   );
 
-  // Existing in-progress creatives without copy yet: the backend webhook may
-  // already have started generation. Trigger it and poll for the result.
-  useEffect(() => {
-    const pending =
-      items?.filter(
-        (p) =>
-          (p.parentItem?.length ?? 0) > 0 &&
-          p.phase === "Write" &&
-          p.status === "in_progress" &&
-          (p.generationStatus ?? "idle") === "idle" &&
-          p.headlines.length === 0 &&
-          !triggeredRef.current.has(p.id),
-      ) ?? [];
-    for (const p of pending) {
-      triggeredRef.current.add(p.id);
-      autoTrigger.mutate({ id: p.id, showErrorToast: false });
-    }
-  }, [items, autoTrigger]);
+  // NOTE: this page used to auto-start generation for every visible creative
+  // that looked unstarted (phase Write, in_progress, idle, no copy), from a
+  // `useEffect` keyed on `items`. Three things made that unsafe:
+  //
+  //   1. It scanned the whole loaded list, not the batch the user acted on.
+  //   2. Its `triggeredRef` guard was in-memory, so it reset on every mount,
+  //      navigation, refresh and hot reload — the same creative could be
+  //      re-fired any number of times.
+  //   3. It fed itself. `useGenerateProduct.onSuccess` calls setQueriesData +
+  //      invalidateQueries on ["products"], and marking a creative in_progress
+  //      turns on the 4s `refetchInterval` in use-products.ts. Every one of
+  //      those produced a fresh `items` reference, which re-ran the effect.
+  //
+  // On 2026-09-05 this generated 24 concepts across six batches the user never
+  // touched — including four Level C language pages the backend rejects
+  // outright. Real model spend, none of it asked for.
+  //
+  // Generation is explicit now: the Generate button on each card. Do not
+  // reintroduce a render-triggered mutation here.
 
   return (
     <div className="animate-fade-in-up">

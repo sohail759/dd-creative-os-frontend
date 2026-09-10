@@ -4,6 +4,9 @@ import type {
   AgentConfigUpdate,
   AgentListResponse,
   AnalyticsResponse,
+  BatchCopyResult,
+  BatchLaunchResult,
+  CampaignAds,
   Batch,
   BatchSyncResult,
   BatchUploadResult,
@@ -19,12 +22,18 @@ import type {
   GenerationResponse,
   MetaActionResponse,
   MetaProgress,
+  MetaRun,
+  MetaRunKind,
+  MetaState,
   MetaUploadOptions,
   ProductAnalyticsResponse,
   PromptSetting,
-  UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
+  ConceptVariation,
+  CopyRun,
+  RunStatus,
+  RunStepStatus,
 } from "./types";
 
 /**
@@ -86,7 +95,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       const next = encodeURIComponent(current);
       window.location.assign(`/sign-in?next=${next}`);
     }
-    throw new Error("Not authenticated");
+    // Carries a status so the query client's retry rule can see it is a 401
+    // and stop. A bare Error has none, so this was retried twice on the way
+    // out — two extra requests while the page was already redirecting.
+    throw new ApiRequestError("Not authenticated", { status: 401 });
   }
   if (!res.ok) {
     let detail = `Request failed with ${res.status}`;
@@ -121,8 +133,22 @@ function toConceptSummary(raw: RawCreative): ConceptSummary {
     id: String(raw.id),
     name: String(raw.name ?? ""),
     status: (raw.status ?? "not_started") as CreativeStatus,
+    // The API sends `phase` on every level; it was simply being dropped here,
+    // so a concept could never show the phase its batch does.
+    phase: (raw.phase as string | null) ?? undefined,
     angle: (raw.angle as string | null) ?? undefined,
     awareness: (raw.awareness as string | null) ?? undefined,
+    variations: Array.isArray(raw.variations)
+      ? (raw.variations as Array<Record<string, unknown>>).map((v) => ({
+          id: String(v.id ?? ""),
+          name: String(v.name ?? ""),
+          language: String(v.language ?? ""),
+          phase: (v.phase as string | null) ?? null,
+          status: (v.status as string | null) ?? null,
+          hasCopy: Boolean(v.has_copy),
+          headlineCount: Number(v.headline_count ?? 0),
+        }))
+      : undefined,
   };
 }
 
@@ -171,9 +197,43 @@ function toCreative(raw: RawCreative): Creative {
       raw.meta_ids && typeof raw.meta_ids === "object"
         ? (raw.meta_ids as Record<string, string>)
         : {},
+    metaTargets:
+      raw.meta_targets && typeof raw.meta_targets === "object"
+        ? (raw.meta_targets as Creative["metaTargets"])
+        : {},
     metaError: (raw.meta_error as string | null) ?? null,
   };
 }
+
+/** One `meta_runs` document in the shape the UI uses. */
+function mapMetaRun(r: Record<string, unknown> | null): MetaRun | null {
+  if (!r) return null;
+  const progress = (r.progress ?? []) as Array<Record<string, unknown>>;
+  return {
+    id: String(r.id ?? ""),
+    conceptId: String(r.concept_id ?? ""),
+    kind: r.kind as MetaRunKind,
+    status: r.status as MetaRun["status"],
+    progress: progress.map((p) => ({
+      key: String(p.key ?? ""),
+      step: String(p.step ?? ""),
+      status: p.status as MetaRun["progress"][number]["status"],
+      startedAt: (p.started_at as string) ?? null,
+      finishedAt: (p.finished_at as string) ?? null,
+      error: (p.error as string) ?? null,
+    })),
+    ids: (r.ids ?? {}) as Record<string, string>,
+    adAccountId: (r.ad_account_id as string) ?? null,
+    verifiedStatus: (r.verified_status as string) ?? null,
+    error: (r.error as string) ?? null,
+    errorDetails: (r.error_details as string) ?? null,
+    safeRetry: (r.safe_retry as boolean) ?? null,
+    startedAt: (r.started_at as string) ?? null,
+    finishedAt: (r.finished_at as string) ?? null,
+    durationMs: (r.duration_ms as number) ?? null,
+  };
+}
+
 
 export const httpApi: ApiClient = {
   async getProducts(status, limit, offset, brand, phase, search) {
@@ -224,6 +284,72 @@ export const httpApi: ApiClient = {
     return toCreative(res);
   },
 
+  async getConceptRun(id) {
+    const res = await request<{
+      concept_id: string;
+      run_id?: string | null;
+      status: RunStatus;
+      progress: Array<{
+        key: string;
+        step: string;
+        status: RunStepStatus;
+        started_at?: string | null;
+        finished_at?: string | null;
+        error?: string | null;
+      }>;
+      error?: string | null;
+      error_code?: string | null;
+      retryable?: boolean | null;
+      started_at?: string | null;
+      finished_at?: string | null;
+      duration_seconds?: number | null;
+    }>(`/v1/products/${encodeURIComponent(id)}/run`);
+    return {
+      conceptId: res.concept_id,
+      runId: res.run_id ?? null,
+      status: res.status,
+      progress: (res.progress ?? []).map((s) => ({
+        key: s.key,
+        step: s.step,
+        status: s.status,
+        startedAt: s.started_at ?? null,
+        finishedAt: s.finished_at ?? null,
+        error: s.error ?? null,
+      })),
+      error: res.error ?? null,
+      errorCode: res.error_code ?? null,
+      retryable: res.retryable ?? null,
+      startedAt: res.started_at ?? null,
+      finishedAt: res.finished_at ?? null,
+      durationSeconds: res.duration_seconds ?? null,
+    } satisfies CopyRun;
+  },
+
+  async getConceptVariations(id) {
+    const res = await request<Array<{
+      id: string;
+      name: string;
+      language: string;
+      phase?: string | null;
+      status?: string | null;
+      headlines: string[];
+      primary_texts: string[];
+      frame_url?: string | null;
+      generated_at?: string | null;
+    }>>(`/v1/products/${encodeURIComponent(id)}/variations`);
+    return res.map((v) => ({
+      id: v.id,
+      name: v.name,
+      language: v.language,
+      phase: v.phase ?? null,
+      status: v.status ?? null,
+      headlines: v.headlines ?? [],
+      primaryTexts: v.primary_texts ?? [],
+      frameUrl: v.frame_url ?? null,
+      generatedAt: v.generated_at ?? null,
+    })) satisfies ConceptVariation[];
+  },
+
   async getCopywriterPrompt() {
     return request<PromptSetting>("/v1/settings/copywriter-prompt");
   },
@@ -260,10 +386,101 @@ export const httpApi: ApiClient = {
     );
   },
 
-  async getMetaProgress(id) {
-    return request<MetaProgress>(
-      `/v1/products/${encodeURIComponent(id)}/meta-progress`,
+  async copywriteBatch(batchId) {
+    return request<BatchCopyResult>(
+      `/v1/products/${encodeURIComponent(batchId)}/copywrite-batch`,
+      { method: "POST" },
     );
+  },
+
+  async launchBatch(batchId) {
+    return request<BatchLaunchResult>(
+      `/v1/products/${encodeURIComponent(batchId)}/launch-batch`,
+      { method: "POST" },
+    );
+  },
+
+  async getCampaignAds(campaignId, brand) {
+    return request<CampaignAds>(
+      `/v1/analytics/campaigns/${encodeURIComponent(campaignId)}/ads` +
+        `?brand=${encodeURIComponent(brand)}`,
+    );
+  },
+
+  async getMetaRuns(id) {
+    const rows = await request<Array<Record<string, unknown>>>(
+      `/v1/products/${encodeURIComponent(id)}/meta-runs`,
+    );
+    return (rows ?? []).map(mapMetaRun).filter(Boolean) as MetaRun[];
+  },
+
+  async getMetaProgress(id) {
+    const res = await request<{
+      meta_state: MetaState;
+      progress_stage: string | null;
+      ids: Record<string, string>;
+      meta_error?: string | null;
+      uploaded?: boolean;
+      launched?: boolean;
+      run?: {
+        id: string;
+        concept_id: string;
+        kind: MetaRunKind;
+        status: RunStatus;
+        progress: Array<{
+          key: string;
+          step: string;
+          status: RunStepStatus;
+          started_at?: string | null;
+          finished_at?: string | null;
+          error?: string | null;
+        }>;
+        ids?: Record<string, string>;
+        ad_account_id?: string | null;
+        verified_status?: string | null;
+        error?: string | null;
+        error_details?: string | null;
+        safe_retry?: boolean | null;
+        started_at?: string | null;
+        finished_at?: string | null;
+        duration_ms?: number | null;
+      } | null;
+    }>(`/v1/products/${encodeURIComponent(id)}/meta-progress`);
+
+    const r = res.run;
+    return {
+      meta_state: res.meta_state,
+      progress_stage: res.progress_stage,
+      ids: res.ids ?? {},
+      meta_error: res.meta_error ?? null,
+      uploaded: Boolean(res.uploaded),
+      launched: Boolean(res.launched),
+      run: r
+        ? {
+            id: r.id,
+            conceptId: r.concept_id,
+            kind: r.kind,
+            status: r.status,
+            progress: (r.progress ?? []).map((p) => ({
+              key: p.key,
+              step: p.step,
+              status: p.status,
+              startedAt: p.started_at ?? null,
+              finishedAt: p.finished_at ?? null,
+              error: p.error ?? null,
+            })),
+            ids: r.ids ?? {},
+            adAccountId: r.ad_account_id ?? null,
+            verifiedStatus: r.verified_status ?? null,
+            error: r.error ?? null,
+            errorDetails: r.error_details ?? null,
+            safeRetry: r.safe_retry ?? null,
+            startedAt: r.started_at ?? null,
+            finishedAt: r.finished_at ?? null,
+            durationMs: r.duration_ms ?? null,
+          }
+        : null,
+    };
   },
 
   async uploadProduct(id, payload) {
@@ -330,12 +547,6 @@ export const httpApi: ApiClient = {
     return request<AnalyticsResponse>(`/v1/analytics?${params}`);
   },
 
-  async getUploadedProducts(brand?: string) {
-    const params = new URLSearchParams();
-    if (brand) params.set("brand", brand);
-    const qs = params.toString();
-    return request<UploadedProduct[]>(`/v1/products/uploaded${qs ? `?${qs}` : ""}`);
-  },
 
   async getProductAnalytics(creativeId: string) {
     return request<ProductAnalyticsResponse>(

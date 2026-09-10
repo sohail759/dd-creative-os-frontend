@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { useGenerateProduct } from "@/hooks/use-generate";
-import { GenerationSteps } from "./generation-steps";
+import { GenerationSteps, RunError } from "./generation-steps";
+import { useConceptRun } from "@/hooks/use-concept-run";
 import type { Creative } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -17,25 +17,19 @@ import { cn } from "@/lib/utils";
 export function GenerateButton({
   creative,
   className,
+  showRunError = true,
 }: {
   creative: Creative;
   className?: string;
+  /** False where a RunPanel already shows the failure, to avoid two copies. */
+  showRunError?: boolean;
 }) {
   const mutation = useGenerateProduct();
+  const { data: run } = useConceptRun(creative.id, {
+    active: (creative.generationStatus ?? "idle") === "in_progress",
+  });
   const generation = creative.generationStatus ?? "idle";
   const hasCopy = creative.headlines.length > 0;
-
-  const [startedAt, setStartedAt] = useState<number | undefined>(() =>
-    generation === "in_progress" ? Date.now() : undefined,
-  );
-
-  const initialRef = useRef(generation === "in_progress");
-  useEffect(() => {
-    if (initialRef.current) {
-      setStartedAt(Date.now());
-      initialRef.current = false;
-    }
-  }, []);
 
   const pendingForThis =
     mutation.isPending && mutation.variables?.id === creative.id;
@@ -56,20 +50,21 @@ export function GenerateButton({
             Regenerating creative...
           </p>
         ) : (
-          <GenerationSteps startedAt={startedAt} />
+          <GenerationSteps conceptId={creative.id} />
         )}
       </div>
     );
   }
 
   const isFailed = generation === "failed";
+  const lastError =
+    showRunError && run?.error ? <RunError run={run} /> : null;
 
-  return (
+  const trigger = (
     <button
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();
-        setStartedAt(Date.now());
         mutation.mutate({ id: creative.id, options: { force: true } });
       }}
       disabled={mutation.isPending && mutation.variables?.id === creative.id}
@@ -94,4 +89,16 @@ export function GenerateButton({
       )}
     </button>
   );
+
+  // The most recent run's real failure sits above the retry control, so the
+  // user sees what went wrong rather than a bare "Try Again".
+  if (lastError) {
+    return (
+      <div className={cn("flex flex-col gap-3", className)}>
+        {lastError}
+        {trigger}
+      </div>
+    );
+  }
+  return trigger;
 }

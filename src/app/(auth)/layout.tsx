@@ -1,26 +1,44 @@
-import { Copyright } from "lucide-react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { fetchCurrentUser } from "@/lib/api/auth";
+import { destinationFor } from "@/lib/auth-routing";
 
-export default function AuthLayout({
+const SESSION_COOKIE = "cos_session";
+
+/**
+ * Sign-in and sign-up.
+ *
+ * The mirror of the dashboard gate: an authenticated visitor has no business
+ * on a sign-in form, so they are sent wherever their status belongs — the
+ * app if approved, the pending or blocked page otherwise.
+ *
+ * The session is VALIDATED against the backend rather than inferred from the
+ * cookie's presence, and that distinction matters here. A stale cookie —
+ * one whose server-side session is gone — would otherwise bounce the visitor
+ * onward, be rejected there, and be sent back here forever. Validating means
+ * a dead cookie simply shows the form, which is what someone in that state
+ * needs.
+ */
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
-      <div className="mb-8 flex items-center gap-2.5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-black">
-          <Copyright className="h-5 w-5" strokeWidth={2.5} />
-        </div>
-        <div className="leading-tight">
-          <p className="text-lg font-bold tracking-tight text-foreground">
-            Creative OS
-          </p>
-          <p className="text-[11px] uppercase tracking-widest text-faint">
-            Ad Copy Studio
-          </p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
+  const useMock =
+    process.env.NEXT_PUBLIC_USE_MOCK === "true" &&
+    !process.env.NEXT_PUBLIC_API_URL;
+
+  if (!useMock) {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get(SESSION_COOKIE);
+    if (sessionCookie) {
+      const user = await fetchCurrentUser(
+        `${sessionCookie.name}=${sessionCookie.value}`,
+      );
+      if (user) redirect(destinationFor(user));
+    }
+  }
+
+  return <AuthShell>{children}</AuthShell>;
 }

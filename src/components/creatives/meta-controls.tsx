@@ -54,8 +54,11 @@ export function MetaControls({
     (creative.headlines?.length ?? 0) > 0 &&
     (creative.primary_texts?.length ?? 0) > 0;
 
-  const isUploading = metaState === "uploading";
-  const progress = useMetaProgress(creative.id, isUploading);
+  // Poll while either half is in flight, and for the moment right after a
+  // button press when the server has not opened its run yet.
+  const inFlight = metaState === "uploading" || metaState === "launching";
+  const justPressed = upload.isPending || launch.isPending;
+  useMetaProgress(creative.id, { active: inFlight || justPressed });
 
   // Batch -> Concept rule: only concepts carry a `Parent item` relation and
   // only concepts own upload state. Batches/standalone products never show the
@@ -167,15 +170,9 @@ export function MetaControls({
         </p>
       )}
 
-      {isUploading && progress.data && (
-        <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-          <UploadProgress
-            progressStage={progress.data.progress_stage}
-            metaState={progress.data.meta_state}
-            metaError={progress.data.meta_error}
-          />
-        </div>
-      )}
+      {/* Progress is rendered by the concept page, which lays copywriting,
+          upload and launch out as three panels. Rendering it here too put
+          the upload progress on screen twice. */}
 
       {showLaunchConfirm && (
         <LaunchConfirmDialog
@@ -403,7 +400,7 @@ function UploadForm({
           required
         />
         <Field
-          label="Destination URL"
+          label="Landing Page URL"
           value={form.link_url}
           onChange={(v) => setForm((s) => ({ ...s, link_url: v }))}
           required
@@ -446,7 +443,7 @@ function UploadForm({
             const image = (form.image || "").trim();
             const video = (form.video || "").trim();
             if (!form.campaign_id || !form.page_id || !link) {
-              setValidationError("Campaign, Page, and Destination URL are required.");
+              setValidationError("Campaign, Page, and Landing Page URL are required.");
               return;
             }
             if (!image && !video) {

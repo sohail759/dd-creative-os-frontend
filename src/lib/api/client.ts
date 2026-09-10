@@ -9,6 +9,8 @@ import type {
   ConceptDetail,
   ConceptListResponse,
   ConceptRunResult,
+  ConceptVariation,
+  CopyRun,
   ConceptRunDispatch,
   Creative,
   CreativeCounts,
@@ -20,13 +22,16 @@ import type {
   GenerationResponse,
   GenerateOptions,
   MetaActionResponse,
+  BatchCopyResult,
+  BatchLaunchResult,
+  CampaignAds,
   MetaProgress,
+  MetaRun,
   MetaUploadOptions,
   MetaUploadPayload,
   ProductAnalyticsResponse,
   PromptSetting,
   PromptSettingUpdate,
-  UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
 } from "./types";
@@ -43,6 +48,8 @@ export interface ApiClient {
   getProduct(id: string): Promise<Creative>;
   generateProduct(id: string, options?: GenerateOptions): Promise<GenerationResponse>;
   getProductStatus(id: string): Promise<Creative>;
+  getConceptRun(id: string): Promise<CopyRun>;
+  getConceptVariations(id: string): Promise<ConceptVariation[]>;
   getProductCounts(brand?: string, phase?: string): Promise<CreativeCounts>;
 
   getCopywriterPrompt(): Promise<PromptSetting>;
@@ -52,6 +59,10 @@ export interface ApiClient {
   getFrameAssets(id: string, refresh?: boolean): Promise<FrameAssetsResponse>;
   getUploadOptions(id: string): Promise<MetaUploadOptions>;
   getMetaProgress(id: string): Promise<MetaProgress>;
+  getMetaRuns(id: string): Promise<MetaRun[]>;
+  getCampaignAds(campaignId: string, brand: string): Promise<CampaignAds>;
+  launchBatch(batchId: string): Promise<BatchLaunchResult>;
+  copywriteBatch(batchId: string): Promise<BatchCopyResult>;
   uploadProduct(id: string, payload: MetaUploadPayload): Promise<MetaActionResponse>;
   launchProduct(id: string): Promise<MetaActionResponse>;
 
@@ -64,7 +75,6 @@ export interface ApiClient {
   uploadBatch(batchId: string): Promise<BatchUploadResult>;
 
   getAnalytics(brand?: string, limit?: number, offset?: number): Promise<AnalyticsResponse>;
-  getUploadedProducts(brand?: string): Promise<UploadedProduct[]>;
   getProductAnalytics(creativeId: string): Promise<ProductAnalyticsResponse>;
   fetchProductAnalytics(creativeId: string, brand?: string): Promise<ProductAnalyticsResponse>;
   fetchBulkAnalytics(brand?: string): Promise<FetchAnalyticsResponse>;

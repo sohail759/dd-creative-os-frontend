@@ -16,6 +16,15 @@
   --color-success: #4ade80;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
+
+  /* Ad type. Deliberately outside the status palette above: accent means
+     "uploaded" and success means "live" on the same cards, so reusing either
+     would make a video concept read as a state it is not in. Violet and sky
+     are unused elsewhere, so they can only mean the type. */
+  --color-type-video: #a78bfa;
+  --color-type-video-dim: #a78bfa1f;
+  --color-type-image: #38bdf8;
+  --color-type-image-dim: #38bdf81f;
 }
 
 :root {

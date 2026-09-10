@@ -5,9 +5,23 @@ import { CREATIVE_PHASES } from "@/lib/api/types";
 
 export type PhaseFilterValue = "all" | (typeof CREATIVE_PHASES)[number];
 
+/**
+ * The phases worth filtering by, in workflow order.
+ *
+ * `CREATIVE_PHASES` lists all fifteen Notion allows, and rendering every one
+ * gave sixteen buttons wrapping over three rows — most of them for phases
+ * that are upstream of this tool (Briefing, Filming, Ideation) or that
+ * nobody filters by. These five are the stages the work actually moves
+ * through here.
+ *
+ * The full list still validates `?phase=` in the URL, so a saved link to
+ * Archived or Editing keeps working even though there is no button for it.
+ */
+const FILTER_PHASES = ["Write", "Upload", "Launch", "Testing", "Active"] as const;
+
 const FILTERS: { value: PhaseFilterValue; label: string }[] = [
   { value: "all", label: "All Phases" },
-  ...CREATIVE_PHASES.map((phase) => ({ value: phase, label: phase })),
+  ...FILTER_PHASES.map((phase) => ({ value: phase, label: phase })),
 ];
 
 export function PhaseFilter({

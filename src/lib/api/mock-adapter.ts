@@ -14,12 +14,15 @@ import type {
   FrameAssetsResponse,
   GenerateOptions,
   MetaActionResponse,
+  BatchCopyResult,
+  BatchLaunchResult,
+  CampaignAds,
   MetaProgress,
+  MetaRun,
   MetaUploadOptions,
   MetaUploadPayload,
   ProductAnalyticsResponse,
   PromptSetting,
-  UploadedProduct,
   IntelligenceAdList,
   IntelligenceDetail,
   IntelligenceBlock,
@@ -259,6 +262,41 @@ export const mockApi: ApiClient = {
     return { ...product };
   },
 
+  async getConceptRun(id) {
+    await delay(60);
+    return {
+      conceptId: id,
+      runId: null,
+      status: "none" as const,
+      progress: [],
+      error: null,
+      errorCode: null,
+      retryable: null,
+      startedAt: null,
+      finishedAt: null,
+      durationSeconds: null,
+    };
+  },
+
+  async getConceptVariations(id) {
+    await delay(60);
+    const product = store.get(id);
+    if (!product) return [];
+    return [
+      {
+        id: `${id}-eng`,
+        name: `${product.name} ENG`,
+        language: "ENG",
+        phase: product.phase ?? null,
+        status: null,
+        headlines: product.headlines ?? [],
+        primaryTexts: product.primary_texts ?? [],
+        frameUrl: product.frameUrl ?? null,
+        generatedAt: product.generatedAt ?? null,
+      },
+    ];
+  },
+
   async getCopywriterPrompt(): Promise<PromptSetting> {
     await delay(30);
     const value = mockPrompt.value || ""
@@ -357,6 +395,34 @@ export const mockApi: ApiClient = {
     };
   },
 
+  async copywriteBatch(batchId: string): Promise<BatchCopyResult> {
+    await delay(200);
+    return { id: batchId, queued: 0, total: 0, results: [] };
+  },
+
+  async launchBatch(batchId: string): Promise<BatchLaunchResult> {
+    await delay(200);
+    return { id: batchId, launched: 0, total: 0, results: [] };
+  },
+
+  async getCampaignAds(campaignId: string): Promise<CampaignAds> {
+    await delay(40);
+    return {
+      campaign_id: campaignId,
+      ads: [],
+      total: 0,
+      kpis: {
+        spend: 0, impressions: 0, clicks: 0, reach: 0, purchases: 0,
+        purchase_value: 0, ctr: 0, cpc: 0, cpm: 0, roas: 0, cpp: 0,
+      },
+    };
+  },
+
+  async getMetaRuns(): Promise<MetaRun[]> {
+    await delay(20);
+    return [];
+  },
+
   async getMetaProgress(id): Promise<MetaProgress> {
     await delay(30);
     const product = store.get(id);
@@ -366,6 +432,9 @@ export const mockApi: ApiClient = {
       progress_stage: null,
       ids: product.metaIds ?? {},
       meta_error: product.metaError,
+      uploaded: product.metaState === "uploaded_paused" || product.metaState === "active",
+      launched: product.metaState === "active",
+      run: null,
     };
   },
 
@@ -452,11 +521,35 @@ export const mockApi: ApiClient = {
       };
     });
     const ready = concepts.filter((c) => c.readiness.is_ready).length;
+    const uploadedCount = concepts.filter(
+      (c) => c.meta.upload_status === "uploaded_paused" || c.meta.upload_status === "active",
+    ).length;
+    const launchedCount = concepts.filter((c) => c.meta.upload_status === "active").length;
     return {
       id,
       name: batch.name,
+      phase: batch.phase ?? "",
       notion_url: null,
       meta: { adset_id: batch.metaIds?.adset_id ?? null, upload_status: batch.metaState },
+      copy: {
+        total: concepts.length,
+        with_creative_url: concepts.filter((c) => c.readiness.frame_url).length,
+        needs_copy: concepts.filter((c) => c.readiness.frame_url && !c.readiness.creative).map((c) => c.name),
+        missing_creative_url: concepts.filter((c) => !c.readiness.frame_url).map((c) => c.name),
+        generating: 0,
+        can_generate: false,
+        is_generating: false,
+      },
+      upload: {
+        total: concepts.length,
+        uploaded: uploadedCount,
+        launched: launchedCount,
+        in_flight: 0,
+        all_uploaded: concepts.length > 0 && uploadedCount === concepts.length,
+        all_launched: concepts.length > 0 && launchedCount === concepts.length,
+        is_uploading: false,
+        failed: [],
+      },
       readiness: {
         is_ready: concepts.length > 0 && ready === concepts.length,
         total_concepts: concepts.length,
@@ -545,28 +638,6 @@ export const mockApi: ApiClient = {
     };
   },
 
-  async getUploadedProducts(): Promise<UploadedProduct[]> {
-    await delay(100);
-    return [...store.values()]
-      .filter((p) => p.metaState === "uploaded_paused" || p.metaState === "active")
-      .map((p) => ({
-        creative_id: p.id,
-        product_name: p.product,
-        brand_slug: p.brand,
-        meta_state: p.metaState ?? "not_uploaded",
-        campaign_id: p.metaIds?.campaign_id ?? null,
-        adset_id: p.metaIds?.adset_id ?? null,
-        creative_meta_id: p.metaIds?.creative_id ?? null,
-        ad_id: p.metaIds?.ad_id ?? null,
-        ad_account_id: null,
-        ad_name: null,
-        adset_name: null,
-        campaign_name: null,
-        uploaded_at: p.lastEditedAt ?? null,
-        launched_at: p.metaState === "active" ? p.lastEditedAt ?? null : null,
-        last_error: p.metaError ?? null,
-      }));
-  },
 
   async getProductAnalytics(creativeId: string): Promise<ProductAnalyticsResponse> {
     await delay(80);
