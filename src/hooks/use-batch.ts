@@ -66,11 +66,18 @@ function markBusy(
   if (!batchId) return;
   queryClient.setQueryData<Batch>(["batch", batchId], (batch) => {
     if (!batch) return batch;
-    const concepts = batch.concepts.map((c) =>
-      conceptId && c.id !== conceptId
-        ? c
-        : { ...c, meta: { ...c.meta, in_flight: true, upload_status: state, error: null } },
-    );
+    // Only the concept actually being acted on is marked. A BATCH upload has
+    // no concept id, and marking all of them was a lie the server corrected a
+    // moment later: it uploads one at a time, so the next refetch cleared
+    // every loader at once and looked like the run had stopped. The batch is
+    // busy; its concepts are not yet.
+    const concepts = conceptId
+      ? batch.concepts.map((c) =>
+          c.id === conceptId
+            ? { ...c, meta: { ...c.meta, in_flight: true, upload_status: state, error: null } }
+            : c,
+        )
+      : batch.concepts;
     return {
       ...batch,
       concepts,

@@ -71,9 +71,16 @@ function ConceptRow({ concept, batchId, batchPhase }: { concept: BatchConcept; b
   const isLive = concept.meta.upload_status === "active";
   // Server state first: a mutation's local flag is lost on navigation, so
   // coming back to the table showed an idle row mid-upload.
-  const isUploading = Boolean(concept.meta.in_flight) || upload.isPending;
+  // Split by kind — see the card view.
+  const runningKind = concept.meta.running_kind ?? null;
+  const isUploading =
+    runningKind === "upload"
+    || concept.meta.upload_status === "uploading"
+    || upload.isPending;
   const isLaunching =
-    concept.meta.upload_status === "launching" || launch.isPending;
+    runningKind === "launch"
+    || concept.meta.upload_status === "launching"
+    || launch.isPending;
   const canLaunch =
     concept.meta.upload_status === "uploaded_paused" && !isLaunching && !isUploading;
   const generationMessage = dispatchMessage(deconstruct.data);

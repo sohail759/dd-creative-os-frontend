@@ -18,8 +18,17 @@ import type { ConceptVariation } from "@/lib/api/types";
  * ENG leads and is selected by default: it is the language the pipeline
  * generates natively, and the rest are translations of it.
  */
-export function VariationTabs({ conceptId }: { conceptId: string }) {
-  const { data: variations, isLoading } = useConceptVariations(conceptId);
+export function VariationTabs({
+  conceptId,
+  generating = false,
+}: {
+  conceptId: string;
+  /** True while copy is being written, so the tabs keep refreshing. */
+  generating?: boolean;
+}) {
+  const { data: variations, isLoading } = useConceptVariations(conceptId, true, {
+    active: generating,
+  });
   const [selected, setSelected] = useState<string | null>(null);
 
   if (isLoading) {

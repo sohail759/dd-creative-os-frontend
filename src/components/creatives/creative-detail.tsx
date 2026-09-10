@@ -255,7 +255,10 @@ export function CreativeDetailView({
             Variations
           </h2>
           <div className="mt-4">
-            <VariationTabs conceptId={data.id} />
+            <VariationTabs
+              conceptId={data.id}
+              generating={data.generationStatus === "in_progress"}
+            />
           </div>
         </section>
       )}

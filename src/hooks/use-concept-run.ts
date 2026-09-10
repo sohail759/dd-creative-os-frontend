@@ -57,23 +57,40 @@ export function useConceptRun(
     previous.current = status;
     if (!conceptId || !status) return;
     if (was === "running" && TERMINAL.has(status)) {
-      queryClient.invalidateQueries({ queryKey: ["concept-variations", conceptId] });
+      // Refetch, not just mark stale: the user is looking at this page now.
+      queryClient.refetchQueries({ queryKey: ["concept-variations", conceptId] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.refetchQueries({ queryKey: ["products", conceptId] });
     }
   }, [status, conceptId, queryClient]);
 
   return query;
 }
 
-/** A concept's Level C variations, ENG first. */
+/**
+ * A concept's Level C variations, ENG first — where the copy actually lives.
+ *
+ * `active` keeps them refreshing while copy is being written. Relying on the
+ * run's completion to invalidate them meant the page had to catch one
+ * running -> finished transition; miss it and the copy sat there written but
+ * unseen until a manual reload. The copy is persisted well before the run
+ * closes (86 seconds earlier on the run I measured), so polling while the
+ * work is in flight shows it as soon as it exists.
+ */
 export function useConceptVariations(
   conceptId: string | undefined,
   enabled = true,
+  options: { active?: boolean } = {},
 ) {
+  const { active = false } = options;
   return useQuery<ConceptVariation[]>({
     queryKey: ["concept-variations", conceptId],
     queryFn: () => api.getConceptVariations(conceptId!),
     enabled: Boolean(conceptId) && enabled,
+    refetchInterval: active ? 4000 : false,
+    // The global default is off, which is right for a static page and wrong
+    // for one the user returns to expecting new copy.
+    refetchOnMount: "always",
   });
 }
 

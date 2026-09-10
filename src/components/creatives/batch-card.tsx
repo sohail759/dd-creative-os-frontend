@@ -91,6 +91,28 @@ function ActionButton({
   );
 }
 
+/**
+ * A creative link, shortened to something recognisable.
+ *
+ * Most creatives are Notion-hosted files: a pre-signed S3 URL whose path is a
+ * pair of UUIDs and whose query string is the signature. Showing the filename
+ * is the only readable part; a Frame.io share keeps its host and path.
+ */
+function creativeUrlLabel(url: string | null | undefined): string {
+  const raw = (url ?? "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.includes("amazonaws.com") || parsed.hostname.includes("notion")) {
+      const file = decodeURIComponent(parsed.pathname.split("/").pop() || "");
+      return file || "Notion file";
+    }
+    return prettyUrl(raw);
+  } catch {
+    return prettyUrl(raw);
+  }
+}
+
 function SyncHint({ children }: { children: ReactNode }) {
   return <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning"><AlertTriangle className="h-3.5 w-3.5 shrink-0" />{children}</span>;
 }
@@ -139,9 +161,18 @@ function ConceptSection({
   // Server state first, so an upload started here is still shown as running
   // after a navigation — the same reason the batch button reads
   // `batch.upload` rather than a mutation's local flag.
-  const isUploading = Boolean(concept.meta.in_flight) || uploadConcept.isPending;
+  // Split by KIND. `in_flight` alone means "busy", and using it for the
+  // upload spinner lit both spinners at once the moment Launch was pressed
+  // on a concept that was already uploaded.
+  const runningKind = concept.meta.running_kind ?? null;
+  const isUploading =
+    runningKind === "upload"
+    || concept.meta.upload_status === "uploading"
+    || uploadConcept.isPending;
   const isLaunching =
-    concept.meta.upload_status === "launching" || launchConcept.isPending;
+    runningKind === "launch"
+    || concept.meta.upload_status === "launching"
+    || launchConcept.isPending;
   const conceptUploadPending = isUploading;
   const isGenerating = concept.generation_status === "in_progress";
   // `actions.can_upload` is readiness only — the server deliberately keeps
@@ -280,7 +311,22 @@ function ConceptSection({
           label={frameRow.label}
           ok={readiness.frame_url}
           trailing={
-            readiness.frame_url ? null : (
+            readiness.frame_url ? (
+              // The link itself, as the Landing Page URL row shows its own.
+              // A Notion-hosted file is a signed S3 link with no readable
+              // path, so `prettyUrl` would render an opaque host — the host
+              // alone is the honest label there.
+              <a
+                href={concept.frame_url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                title={concept.frame_url ?? ""}
+                className="max-w-[220px] truncate text-xs text-muted underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
+              >
+                {creativeUrlLabel(concept.frame_url)}
+              </a>
+            ) : (
               <SyncHint>Sync or add in Notion then Sync</SyncHint>
             )
           }

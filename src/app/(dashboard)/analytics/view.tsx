@@ -1,0 +1,528 @@
+"use client";
+
+import { Fragment, useState } from "react";
+import { createPortal } from "react-dom";
+import { useSearchParams, useRouter } from "next/navigation";
+import {
+  BarChart3,
+  Info,
+  DollarSign,
+  MousePointerClick,
+  ShoppingCart,
+  Eye,
+  Loader2,
+  AlertTriangle,
+  Megaphone,
+  Target,
+  RefreshCw,
+  Clock,
+  TrendingUp,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
+
+import { useCampaignAds, useAnalytics, useFetchAllAnalytics } from "@/hooks/use-analytics";
+import type { AnalyticsKpis, AnalyticsCampaign, AnalyticsAd, AdAnalytics } from "@/lib/api/types";
+
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading?: boolean;
+}) {
+  if (!open) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+        <p className="mt-2 text-sm text-muted whitespace-pre-line">{message}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-accent/90 disabled:opacity-50"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Fetching...
+              </span>
+            ) : (
+              "Fetch"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function KpiCards({ kpis }: { kpis: AnalyticsKpis }) {
+  const items = [
+    { label: "Spend", value: kpis.spend > 0 ? `€${Math.round(kpis.spend).toLocaleString()}` : "—", icon: DollarSign },
+    { label: "Impressions", value: kpis.impressions > 0 ? kpis.impressions.toLocaleString() : "—", icon: Eye },
+    { label: "Reach", value: kpis.reach > 0 ? kpis.reach.toLocaleString() : "—", icon: Eye },
+    { label: "Clicks", value: kpis.clicks > 0 ? kpis.clicks.toLocaleString() : "—", icon: MousePointerClick },
+    { label: "Purchases", value: kpis.purchases > 0 ? kpis.purchases.toLocaleString() : "—", icon: ShoppingCart },
+    { label: "Purchase Value", value: kpis.purchase_value > 0 ? `€${Math.round(kpis.purchase_value).toLocaleString()}` : "—", icon: DollarSign },
+    { label: "CTR", value: kpis.ctr > 0 ? `${kpis.ctr.toFixed(2)}%` : "—", icon: Target },
+    { label: "CPC", value: kpis.cpc > 0 ? `€${kpis.cpc.toFixed(2)}` : "—", icon: DollarSign },
+    { label: "CPM", value: kpis.cpm > 0 ? `€${kpis.cpm.toFixed(2)}` : "—", icon: BarChart3 },
+    { label: "CPP", value: kpis.cpp > 0 ? `€${kpis.cpp.toFixed(2)}` : "—", icon: ShoppingCart },
+    { label: "ROAS", value: kpis.roas > 0 ? kpis.roas.toFixed(2) : "—", icon: TrendingUp },
+    { label: "Freq.", value: kpis.impressions > 0 && kpis.reach > 0 ? `${(kpis.impressions / kpis.reach).toFixed(2)}x` : "—", icon: Target },
+  ];
+
+  return (
+    <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      {items.map((kpi) => {
+        const Icon = kpi.icon;
+        return (
+          <div key={kpi.label} className="rounded-2xl border border-border bg-panel p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-faint">{kpi.label}</span>
+              <Icon className="h-3.5 w-3.5 text-muted" />
+            </div>
+            <p className="mt-2 text-xl font-bold tabular-nums text-foreground">{kpi.value}</p>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function AdAnalyticsStrip({ analytics }: { analytics?: AdAnalytics }) {
+  const k = analytics?.kpis;
+  if (!k || (k.spend === 0 && k.impressions === 0)) {
+    return (
+      <p className="text-xs text-muted">No analytics available for this ad.</p>
+    );
+  }
+  const cells = [
+    { label: "Spend", value: `€${Math.round(k.spend).toLocaleString()}` },
+    { label: "Impr", value: k.impressions > 0 ? k.impressions.toLocaleString() : "—" },
+    { label: "Clicks", value: k.clicks > 0 ? k.clicks.toLocaleString() : "—" },
+    { label: "CTR", value: k.ctr > 0 ? `${k.ctr.toFixed(2)}%` : "—" },
+    { label: "CPC", value: k.cpc > 0 ? `€${k.cpc.toFixed(2)}` : "—" },
+    { label: "CPM", value: k.cpm > 0 ? `€${k.cpm.toFixed(2)}` : "—" },
+    { label: "Purch", value: k.purchases > 0 ? k.purchases.toLocaleString() : "—" },
+    { label: "ROAS", value: k.roas > 0 ? k.roas.toFixed(2) : "—" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-lg bg-white/[0.03] px-3 py-2">
+          <p className="text-[9px] font-medium uppercase tracking-wider text-faint">{c.label}</p>
+          <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">{c.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatObjective(objective?: string | null) {
+  if (!objective) return "—";
+  return objective.replace(/^OUTCOME_/, "");
+}
+
+function CampaignsTable({
+  campaigns,
+  brand,
+}: {
+  campaigns: AnalyticsCampaign[];
+  brand: string;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  // Only the open row is fetched. The list response no longer nests every
+  // campaign's ads — that was 7.5MB shipped for a click that usually never
+  // happens.
+  const expandedAds = useCampaignAds(expanded, brand);
+
+  if (campaigns.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-panel p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Megaphone className="h-4 w-4 text-accent" />
+          Campaigns
+        </h2>
+        <p className="mt-4 text-sm text-muted">No campaigns found.</p>
+      </div>
+    );
+  }
+
+  const statusColor = (s: string) => {
+    if (s === "ACTIVE") return "text-emerald-400";
+    if (s === "PAUSED") return "text-yellow-400";
+    return "text-muted";
+  };
+
+  const formatBudget = (b: number | null) => {
+    if (!b) return "—";
+    return `€${(Number(b) / 100).toLocaleString()}/day`;
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-panel p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Megaphone className="h-4 w-4 text-accent" />
+        Campaigns
+        <span className="ml-auto text-xs font-normal text-muted">{campaigns.length}</span>
+      </h2>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-faint">
+              <th className="w-6 pb-2 pr-1"></th>
+              <th className="pb-2 pr-4">Name</th>
+              <th className="pb-2 pr-4">Status</th>
+              <th className="pb-2 pr-4">Ads</th>
+              <th className="pb-2 pr-4 text-right">Spend</th>
+              <th className="pb-2 pr-4 text-right">ROAS</th>
+              <th className="pb-2 pr-4">Objective</th>
+              <th className="pb-2 pr-4 text-right">Budget</th>
+              <th className="pb-2 text-right">Started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {campaigns.map((c) => {
+              const ca = c.analytics;
+              const isExpanded = expanded === c.id;
+              const ads = isExpanded ? (expandedAds.data?.ads ?? []) : [];
+              return (
+                <Fragment key={c.id}>
+                  <tr
+                    className="border-b border-border/50 last:border-0 cursor-pointer select-none"
+                    onClick={() => setExpanded(isExpanded ? null : c.id)}
+                  >
+                    <td className="py-2.5 pr-1 text-muted">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-foreground max-w-[260px] truncate">{c.name}</td>
+                    <td className={`py-2.5 pr-4 font-medium ${statusColor(c.status)}`}>{c.status}</td>
+                    <td className="py-2.5 pr-4 text-muted tabular-nums">
+                      {ca ? ca.ad_count : ads.length || "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {ca && ca.kpis.spend > 0 ? `€${Math.round(ca.kpis.spend).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {ca && ca.kpis.roas > 0 ? ca.kpis.roas.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-muted">{formatObjective(c.objective)}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">{formatBudget(c.daily_budget)}</td>
+                    <td className="py-2.5 text-right text-muted">
+                      {c.start_time ? new Date(c.start_time).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-border/50 bg-black/20 last:border-0">
+                      <td colSpan={9} className="py-4 pl-8 pr-4">
+                        {expandedAds.isPending ? (
+                          <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+                            Loading ads…
+                          </div>
+                        ) : expandedAds.isError ? (
+                          <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+                            Could not load this campaign&apos;s ads.
+                          </div>
+                        ) : ads.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+                            {ca ? "No per-ad analytics available for this campaign yet." : "No ads linked to this campaign."}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {ads.map((ad) => (
+                              <div
+                                key={ad.id}
+                                className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-panel p-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                  <span className="max-w-[280px] truncate text-sm font-medium text-foreground">
+                                    {ad.name || "Unnamed ad"}
+                                  </span>
+                                  <span className="text-[10px] font-medium uppercase tracking-wider text-faint">
+                                    {ad.status}
+                                  </span>
+                                </div>
+                                <AdAnalyticsStrip analytics={ad.analytics} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdsTable({ ads }: { ads: AnalyticsAd[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  if (ads.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-panel p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Target className="h-4 w-4 text-accent" />
+          Ads
+        </h2>
+        <p className="mt-4 text-sm text-muted">No ads found.</p>
+      </div>
+    );
+  }
+
+  const statusColor = (s: string) => {
+    if (s === "ACTIVE") return "text-emerald-400";
+    if (s === "PAUSED") return "text-yellow-400";
+    if (s === "WITH_ISSUES") return "text-red-400";
+    return "text-muted";
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-panel p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Target className="h-4 w-4 text-accent" />
+        Ads
+        <span className="ml-auto text-xs font-normal text-muted">{ads.length}</span>
+      </h2>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-faint">
+              <th className="w-6 pb-2 pr-1"></th>
+              <th className="pb-2 pr-4">Name</th>
+              <th className="pb-2 pr-4">Status</th>
+              <th className="pb-2 pr-4 text-right">Spend</th>
+              <th className="pb-2 pr-4 text-right">Clicks</th>
+<th className="pb-2 pr-4 text-right">CTR</th>
+              <th className="pb-2 pr-4 text-right">ROAS</th>
+              <th className="pb-2">Campaign</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ads.map((a) => {
+              const k = a.analytics?.kpis;
+              const isExpanded = expanded === a.id;
+              return (
+                <Fragment key={a.id}>
+                  <tr
+                    className="border-b border-border/50 last:border-0 cursor-pointer select-none"
+                    onClick={() => setExpanded(isExpanded ? null : a.id)}
+                  >
+                    <td className="py-2.5 pr-1 text-muted">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-foreground max-w-[300px] truncate">{a.name}</td>
+                    <td className={`py-2.5 pr-4 font-medium ${statusColor(a.status)}`}>{a.status}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.spend > 0 ? `€${Math.round(k.spend).toLocaleString()}` : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.clicks > 0 ? k.clicks.toLocaleString() : "—"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.ctr > 0 ? `${k.ctr.toFixed(2)}%` : "—"}
+                    </td>
+<td className="py-2.5 pr-4 text-right tabular-nums text-muted">
+                      {k && k.roas > 0 ? k.roas.toFixed(2) : "—"}
+                    </td>
+                    <td className="py-2.5 text-muted max-w-[220px] truncate">
+                      {a.campaign_name || a.campaign_id || "—"}
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-border/50 bg-black/20 last:border-0">
+                      <td colSpan={8} className="py-4 pl-8 pr-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                          <span className="font-mono">Ad ID: {a.id}</span>
+                          {a.adset_id && <span className="font-mono">Adset: {a.adset_id}</span>}
+                          {a.campaign_name && <span>Campaign: {a.campaign_name}</span>}
+                        </div>
+                        <AdAnalyticsStrip analytics={a.analytics} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function AnalyticsPageView() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const brand = searchParams.get("brand") ?? "numy";
+  const [visibleLimit, setVisibleLimit] = useState(30);
+  const { data, isLoading, error } = useAnalytics(brand, visibleLimit, 0);
+  const fetchMutation = useFetchAllAnalytics();
+  const [showFetchDialog, setShowFetchDialog] = useState(false);
+
+  function setBrand(slug: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("brand", slug);
+    setVisibleLimit(30);
+    router.push(`?${params.toString()}`);
+  }
+
+  function handleFetchConfirm() {
+    fetchMutation.mutate(brand, {
+      onSettled: () => setShowFetchDialog(false),
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        <p className="mt-3 text-sm text-muted">Loading analytics...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+        <p className="mt-3 text-sm text-red-400">{error.message}</p>
+      </div>
+    );
+  }
+
+  const kpis = data?.kpis ?? { spend: 0, impressions: 0, clicks: 0, reach: 0, purchases: 0, purchase_value: 0, ctr: 0, cpc: 0, cpm: 0, roas: 0, cpp: 0 };
+  const campaigns = data?.campaigns ?? [];
+  const ads = data?.ads ?? [];
+
+  const hasData = kpis.spend > 0 || campaigns.length > 0;
+  const lastFetched = data?.last_fetched_at;
+
+  return (
+    <div className="animate-fade-in-up">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <BarChart3 className="h-5 w-5 text-accent" />
+            Analytics
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Meta Ads performance data for <span className="font-medium text-foreground">{brand}</span>.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-border bg-panel p-0.5">
+            {["numy", "holy-mouthwash"].map((slug) => (
+              <button
+                key={slug}
+                onClick={() => setBrand(slug)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  brand === slug
+                    ? "bg-accent text-black"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                {slug === "numy" ? "Numy" : "Holy Mouthwash"}
+              </button>
+            ))}
+          </div>
+          {lastFetched && (
+            <span className="flex items-center gap-1.5 text-xs text-muted">
+              <Clock className="h-3 w-3" />
+              Last fetched: {new Date(lastFetched).toLocaleString()}
+            </span>
+          )}
+          <button
+            onClick={() => setShowFetchDialog(true)}
+            disabled={fetchMutation.isPending}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+          >
+            {fetchMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {fetchMutation.isPending ? "Fetching..." : "Fetch Latest Data"}
+          </button>
+        </div>
+      </header>
+
+      {!hasData && (
+        <div className="mt-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 text-yellow-400" />
+            <p className="text-sm text-yellow-400">
+              No analytics data yet. Click &quot;Fetch Latest Data&quot; to retrieve performance data from Meta.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <KpiCards kpis={kpis} />
+
+      <section className="mt-4">
+        <CampaignsTable campaigns={campaigns} brand={brand} />
+      </section>
+
+      <section className="mt-4">
+        <AdsTable ads={ads} />
+      </section>
+
+      {data && (data.total_ads ?? 0) > (data.limit ?? 30) && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setVisibleLimit((v) => v + 30)}
+            disabled={fetchMutation.isPending}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+          >
+            Load more ({(data.total_ads ?? 0) - (data.limit ?? 30)} more)
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showFetchDialog}
+        title="Fetch Latest Meta Data?"
+        message={
+          "This will contact Meta and fetch the latest analytics for all uploaded products.\n\nThis may consume Meta API rate limit.\n\nContinue?"
+        }
+        onConfirm={handleFetchConfirm}
+        onCancel={() => setShowFetchDialog(false)}
+        loading={fetchMutation.isPending}
+      />
+    </div>
+  );
+}

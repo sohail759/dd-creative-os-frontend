@@ -623,6 +623,8 @@ export interface ConceptMeta {
   uploaded?: boolean;
   launched?: boolean;
   in_flight?: boolean;
+  /** "upload" | "launch" — which half is running right now. */
+  running_kind?: string | null;
   /** Where the ad went, by name — Ads Manager lists neither by id. */
   page_id?: string | null;
   page_name?: string | null;

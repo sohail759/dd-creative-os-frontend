@@ -13,6 +13,7 @@ import {
   Brain,
   LogOut,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -23,16 +24,39 @@ const BRANDS = [
   { slug: "holy-mouthwash", label: "Holy Mouthwash" },
 ] as const;
 
-const NAV_ITEMS = [
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Intelligence", href: "/intelligence", icon: Brain },
-  { label: "Agent Configuration", href: "/agents", icon: Bot },
-];
+/**
+ * The sidebar, as sections rather than one flat list.
+ *
+ * Creative is per-brand, so its entries are brands, not pages: picking one is
+ * how you choose what the creatives page shows. Analytics and Manage are
+ * pages. `adminOnly` hides a section from non-admins — the page and the API
+ * enforce it too, since hiding a link is presentation, not access control.
+ */
+type NavEntry = { label: string; href: string; icon?: typeof BarChart3 };
+type NavSection = { label: string; entries: NavEntry[]; adminOnly?: boolean };
 
-/** Shown only to admins. The page and the API enforce this too — hiding a
-    link is presentation, not access control. */
-const ADMIN_NAV_ITEMS = [
-  { label: "Users", href: "/users", icon: Users },
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Creativess",
+    entries: BRANDS.map((b) => ({ label: b.label, href: `/creatives?brand=${b.slug}` })),
+  },
+  {
+    label: "Analytics",
+    adminOnly: true,
+    entries: [
+      { label: "Ads Performance", href: "/analytics", icon: BarChart3 },
+      { label: "Concepts Intelligence", href: "/intelligence", icon: Brain },
+    ],
+  },
+  {
+    label: "Manage",
+    adminOnly: true,
+    entries: [
+      { label: "Agent Configuration", href: "/agents", icon: Bot },
+      { label: "Users", href: "/users", icon: Users },
+      { label: "Notion Sync", href: "/notion-sync", icon: RefreshCw },
+    ],
+  },
 ];
 
 function BrandMark() {
@@ -53,43 +77,6 @@ function BrandMark() {
   );
 }
 
-function BrandSwitcher({ onNavigate }: { onNavigate?: () => void }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const currentBrand = searchParams.get("brand") ?? "numy";
-
-  function handleBrand(slug: string) {
-    const params = new URLSearchParams(window.location.search);
-    params.set("brand", slug);
-    router.push(`/creatives?${params.toString()}`);
-    onNavigate?.();
-  }
-
-  return (
-    <div className="mb-4 flex flex-col gap-1">
-      <p className="text-xs font-semibold uppercase tracking-widest text-faint">
-        Brand
-      </p>
-      <div className="flex flex-col gap-1">
-        {BRANDS.map((b) => (
-          <button
-            key={b.slug}
-            onClick={() => handleBrand(b.slug)}
-            className={cn(
-              "rounded-lg px-3 py-1.5 text-left text-sm font-medium transition-colors",
-              currentBrand === b.slug
-                ? "bg-accent text-black"
-                : "text-muted hover:bg-white/5 hover:text-foreground",
-            )}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function NavList({
   onNavigate,
   isAdmin = false,
@@ -98,38 +85,62 @@ function NavList({
   isAdmin?: boolean;
 }) {
   const pathname = usePathname();
-  const items = isAdmin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const searchParams = useSearchParams();
+  const currentBrand = searchParams.get("brand") ?? "numy";
+
+  function isActive(href: string): boolean {
+    const [path, query] = href.split("?");
+    if (query) {
+      // A brand entry is active when you are on the creatives page AND that
+      // brand is selected — the path alone cannot tell two brands apart.
+      const brand = new URLSearchParams(query).get("brand");
+      return pathname.startsWith(path) && currentBrand === brand;
+    }
+    return pathname === path || pathname.startsWith(path + "/");
+  }
+
   return (
-    <nav className="flex flex-col gap-1">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active =
-          pathname === item.href || pathname.startsWith(item.href + "/");
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-accent-dim text-accent"
-                : "text-muted hover:bg-white/5 hover:text-foreground",
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Link>
-        );
-      })}
-      {/* <Link
-        href="/settings"
-        onClick={onNavigate}
-        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground"
-      >
-        <Settings className="h-4 w-4" />
-        Settings
-      </Link> */}
+    <nav className="flex flex-col gap-5">
+      {NAV_SECTIONS.filter((section) => isAdmin || !section.adminOnly).map(
+        (section) => (
+          <div key={section.label} className="flex flex-col gap-1">
+            <p className="px-3 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-faint">
+              {section.label}
+            </p>
+            {section.entries.map((entry) => {
+              const Icon = entry.icon;
+              const active = isActive(entry.href);
+              return (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-accent-dim text-accent"
+                      : "text-muted hover:bg-white/5 hover:text-foreground",
+                  )}
+                >
+                  {Icon ? (
+                    <Icon className="h-4 w-4 shrink-0" />
+                  ) : (
+                    // Brands have no icon; a dot keeps their labels on the
+                    // same left edge as the entries above and below.
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                        active ? "bg-accent" : "bg-border-strong",
+                      )}
+                    />
+                  )}
+                  {entry.label}
+                </Link>
+              );
+            })}
+          </div>
+        ),
+      )}
     </nav>
   );
 }
@@ -207,7 +218,6 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
           <BrandMark />
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar px-3">
-          <BrandSwitcher />
           <NavList isAdmin={user?.role === "admin"} />
         </div>
         <UserFooter user={user ?? null} />
@@ -231,7 +241,6 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-3">
-              <BrandSwitcher onNavigate={() => setOpen(false)} />
               <NavList
                 onNavigate={() => setOpen(false)}
                 isAdmin={user?.role === "admin"}
