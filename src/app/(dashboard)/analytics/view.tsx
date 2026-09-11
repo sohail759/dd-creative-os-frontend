@@ -4,6 +4,10 @@ import { Fragment, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
+  useLatestMetaSync, useStartMetaSync, isMetaSyncRunning,
+} from "@/hooks/use-meta-sync";
+import { MetaSyncStatus } from "@/components/analytics/meta-sync-status";
+import {
   BarChart3,
   Info,
   DollarSign,
@@ -390,7 +394,11 @@ export function AnalyticsPageView() {
   const brand = searchParams.get("brand") ?? "numy";
   const [visibleLimit, setVisibleLimit] = useState(30);
   const { data, isLoading, error } = useAnalytics(brand, visibleLimit, 0);
-  const fetchMutation = useFetchAllAnalytics();
+  // Server-derived, so the button reflects a pull the weekly schedule
+  // started just as readily as one a person did — and survives a reload.
+  const { data: metaSync } = useLatestMetaSync(brand);
+  const fetchMutation = useStartMetaSync(brand);
+  const syncRunning = isMetaSyncRunning(metaSync) || fetchMutation.isPending;
   const [showFetchDialog, setShowFetchDialog] = useState(false);
 
   function setBrand(slug: string) {
@@ -401,7 +409,7 @@ export function AnalyticsPageView() {
   }
 
   function handleFetchConfirm() {
-    fetchMutation.mutate(brand, {
+    fetchMutation.mutate(undefined, {
       onSettled: () => setShowFetchDialog(false),
     });
   }
@@ -467,18 +475,27 @@ export function AnalyticsPageView() {
           )}
           <button
             onClick={() => setShowFetchDialog(true)}
-            disabled={fetchMutation.isPending}
-            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-50"
+            disabled={syncRunning}
+            title={
+              syncRunning
+                ? `A Meta sync is already running${
+                    metaSync?.trigger ? ` (started by ${metaSync.trigger})` : ""
+                  }`
+                : "Pull the latest performance data from Meta"
+            }
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {fetchMutation.isPending ? (
+            {syncRunning ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {fetchMutation.isPending ? "Fetching..." : "Fetch Latest Data"}
+            {syncRunning ? "Fetching…" : "Fetch Latest Data"}
           </button>
         </div>
       </header>
+
+      <MetaSyncStatus sync={metaSync ?? null} />
 
       {!hasData && (
         <div className="mt-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4">
