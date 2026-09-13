@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** The brands the sidebar offers. Kept here so all three screens agree. */
@@ -204,5 +205,129 @@ export function BrandTabs({
         );
       })}
     </div>
+  );
+}
+
+
+/** Rows per page. Ten first, because that is what fits without scrolling. */
+export const PAGE_SIZES = [10, 25, 50, 100] as const;
+export const DEFAULT_PAGE_SIZE = 10;
+
+/**
+ * One pager for every list, so the three screens cannot drift apart.
+ *
+ * Shows where you are rather than only offering Next and Previous: on a list
+ * of a hundred landing pages, "page 3 of 10" is the thing you actually want,
+ * and jumping to the last page took ten clicks without it.
+ *
+ * The buttons are disabled at the ends rather than hidden. A control that
+ * vanishes moves everything beside it, and the row jumps under the cursor.
+ */
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+  label = "rows",
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+  label?: string;
+}) {
+  const lastPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+  const from = total === 0 ? 0 : page * pageSize + 1;
+  const to = Math.min(total, (page + 1) * pageSize);
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="flex items-center gap-2 text-muted">
+        <span className="tabular-nums">
+          {total === 0 ? `No ${label}` : `${from}–${to} of ${total} ${label}`}
+        </span>
+        <span className="text-faint">·</span>
+        <label className="flex items-center gap-1.5">
+          <span className="text-faint">Show</span>
+          <select
+            value={pageSize}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-foreground focus:border-accent focus:outline-none"
+          >
+            {PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <PageButton
+          onClick={() => onPageChange(0)}
+          disabled={page === 0}
+          label="First page"
+        >
+          <ChevronsLeft className="h-3.5 w-3.5" />
+        </PageButton>
+        <PageButton
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 0}
+          label="Previous page"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </PageButton>
+        <span className="px-2 tabular-nums text-muted">
+          Page {total === 0 ? 0 : page + 1} of {lastPage + 1}
+        </span>
+        <PageButton
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= lastPage}
+          label="Next page"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </PageButton>
+        <PageButton
+          onClick={() => onPageChange(lastPage)}
+          disabled={page >= lastPage}
+          label="Last page"
+        >
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </PageButton>
+      </div>
+    </div>
+  );
+}
+
+function PageButton({
+  onClick,
+  disabled,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "rounded-lg border border-border p-1.5 transition-colors",
+        disabled
+          ? "cursor-not-allowed text-faint opacity-50"
+          : "text-muted hover:bg-white/5 hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, RefreshCw, Search } from "lucide-react";
 import { useAdSets, useCampaigns, useRefreshTopology } from "@/hooks/use-pages";
 import type { Campaign, MirrorFreshness } from "@/lib/api/pages";
-import { BRANDS, Badge, BrandTabs, TimeAgo } from "./shared";
+import { BRANDS, Badge, BrandTabs, DEFAULT_PAGE_SIZE, Pagination, TimeAgo } from "./shared";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,16 +24,37 @@ export function MetaStructureView() {
   const [search, setSearch] = useState("");
   const [activeOnly, setActiveOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   const { data, isLoading, error } = useCampaigns({
     brand,
     q: search.trim() || undefined,
     status: activeOnly ? "ACTIVE" : undefined,
+    limit: pageSize,
+    offset: page * pageSize,
   });
   const refresh = useRefreshTopology();
 
   const campaigns = data?.items ?? [];
   const mirror = data?.mirror;
+  const total = data?.total ?? 0;
+
+  /**
+   * Changing brand closes whatever was open and clears the search.
+   *
+   * An expanded campaign id belongs to the brand it came from, so keeping it
+   * leaves a row expanded that is no longer in the list, fetching ad sets for
+   * a campaign on another account. The search is the same problem in words: a
+   * term that matched a Numy campaign matches nothing under Holy, and the
+   * screen reads as empty rather than as filtered.
+   */
+  function changeBrand(next: string) {
+    setBrand(next);
+    setSearch("");
+    setExpanded(null);
+    setPage(0);
+  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -66,13 +87,16 @@ export function MetaStructureView() {
       </div>
 
       <div className="mt-6 flex flex-col gap-3">
-        <BrandTabs value={brand} onChange={setBrand} />
+        <BrandTabs value={brand} onChange={changeBrand} />
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative flex-1 min-w-[240px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
               placeholder="Search campaigns by name"
               className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-faint focus:border-accent focus:outline-none"
             />
@@ -81,7 +105,10 @@ export function MetaStructureView() {
             <input
               type="checkbox"
               checked={activeOnly}
-              onChange={(e) => setActiveOnly(e.target.checked)}
+              onChange={(e) => {
+                setActiveOnly(e.target.checked);
+                setPage(0);
+              }}
               className="h-3.5 w-3.5 accent-[var(--color-accent)]"
             />
             Active only
@@ -120,6 +147,24 @@ export function MetaStructureView() {
           />
         ))}
       </div>
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={(next) => {
+          setPage(next);
+          // A campaign expanded on the page you are leaving would stay open
+          // behind the new one.
+          setExpanded(null);
+        }}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+          setExpanded(null);
+        }}
+        label="campaigns"
+      />
     </div>
   );
 }
@@ -226,13 +271,20 @@ function CampaignRow({
 
 function AdSetList({ brand, campaignId }: { brand: string; campaignId: string }) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+
+  // This component is mounted fresh each time a campaign is opened, so its
+  // search and page start clean without anything having to reset them.
   const { data, isLoading } = useAdSets({
     brand,
     campaign_id: campaignId,
     q: search.trim() || undefined,
-    limit: 200,
+    limit: pageSize,
+    offset: page * pageSize,
   });
   const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   return (
     <div className="border-t border-border bg-black/10 px-4 py-3">
@@ -240,7 +292,10 @@ function AdSetList({ brand, campaignId }: { brand: string; campaignId: string })
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" />
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
           placeholder="Search ad sets"
           className="w-full rounded-lg border border-border bg-surface py-1.5 pl-8 pr-2.5 text-xs text-foreground placeholder:text-faint focus:border-accent focus:outline-none"
         />
@@ -297,6 +352,18 @@ function AdSetList({ brand, campaignId }: { brand: string; campaignId: string })
               ))}
             </tbody>
           </table>
+
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(0);
+            }}
+            label="ad sets"
+          />
         </div>
       )}
     </div>

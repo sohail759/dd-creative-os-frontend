@@ -143,8 +143,10 @@ export function useCampaigns(params: {
   q?: string;
   language?: string;
   status?: string;
+  limit?: number;
+  offset?: number;
 }) {
-  return useQuery<{ total: number; items: Campaign[]; mirror: MirrorFreshness }>({
+  return useQuery<Paged<Campaign> & { mirror: MirrorFreshness }>({
     queryKey: ["meta-campaigns", params],
     queryFn: () => listCampaigns(params),
     refetchOnMount: "always",

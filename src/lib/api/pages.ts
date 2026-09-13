@@ -231,7 +231,9 @@ export function listCampaigns(params: {
   q?: string;
   language?: string;
   status?: string;
-}): Promise<{ total: number; items: Campaign[]; mirror: MirrorFreshness }> {
+  limit?: number;
+  offset?: number;
+}): Promise<Paged<Campaign> & { mirror: MirrorFreshness }> {
   return get(`/v1/meta/campaigns${query(params)}`);
 }
 

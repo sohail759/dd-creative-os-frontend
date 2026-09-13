@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { useAdsPages, usePageHealth } from "@/hooks/use-pages";
-import { BRANDS, Badge, BrandTabs, CapacityBar, DRIFT_LABELS, DriftBadge, TimeAgo } from "./shared";
+import {
+  BRANDS, Badge, BrandTabs, CapacityBar, DEFAULT_PAGE_SIZE, DRIFT_LABELS,
+  DriftBadge, Pagination, TimeAgo,
+} from "./shared";
 import { cn } from "@/lib/utils";
-
-const PAGE_SIZE = 100;
 
 const PAGE_TYPE_LABELS: Record<string, string> = {
   editorial: "Editorial",
@@ -27,16 +28,17 @@ export function AdsPagesView() {
   const [search, setSearch] = useState("");
   const [drift, setDrift] = useState("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   const params = useMemo(
     () => ({
       brand: brand || undefined,
       q: search.trim() || undefined,
       drift_state: drift || undefined,
-      limit: PAGE_SIZE,
-      offset: page * PAGE_SIZE,
+      limit: pageSize,
+      offset: page * pageSize,
     }),
-    [brand, search, drift, page],
+    [brand, search, drift, page, pageSize],
   );
 
   const { data, isLoading, error } = useAdsPages(params);
@@ -44,13 +46,27 @@ export function AdsPagesView() {
   const summary = health?.brands?.[0];
 
   const total = data?.total ?? 0;
-  const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
 
   function change<T>(setter: (value: T) => void) {
     return (value: T) => {
       setter(value);
       setPage(0);
     };
+  }
+
+  /**
+   * Changing brand clears the state filter.
+   *
+   * Every brand has a different set of states in play: Numy has restricted
+   * pages and Holy has none, so "Restricted by Meta" carried across shows an
+   * empty table for a brand that simply has no page in that state. The counts
+   * in the dropdown belong to the new brand while the selection belonged to
+   * the old one, which is the confusing part.
+   */
+  function changeBrand(next: string) {
+    setBrand(next);
+    setDrift("");
+    setPage(0);
   }
 
   return (
@@ -78,7 +94,7 @@ export function AdsPagesView() {
       )}
 
       <div className="mt-5 flex flex-col gap-3">
-        <BrandTabs value={brand} onChange={change(setBrand)} />
+        <BrandTabs value={brand} onChange={changeBrand} />
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative flex-1 min-w-[240px]">
@@ -196,35 +212,17 @@ export function AdsPagesView() {
         </table>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-xs text-muted">
-        <span className="tabular-nums">
-          {total === 0 ? "No results" : `${page * PAGE_SIZE + 1}–${Math.min(total, (page + 1) * PAGE_SIZE)} of ${total}`}
-        </span>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-            className={cn(
-              "rounded-lg border border-border px-3 py-1.5 font-medium transition-colors",
-              page === 0 ? "cursor-not-allowed text-faint" : "text-muted hover:bg-white/5 hover:text-foreground",
-            )}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            disabled={page >= lastPage}
-            onClick={() => setPage((p) => p + 1)}
-            className={cn(
-              "rounded-lg border border-border px-3 py-1.5 font-medium transition-colors",
-              page >= lastPage ? "cursor-not-allowed text-faint" : "text-muted hover:bg-white/5 hover:text-foreground",
-            )}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
+        label="pages"
+      />
     </div>
   );
 }

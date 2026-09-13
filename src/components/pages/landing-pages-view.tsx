@@ -3,10 +3,8 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Loader2, Search } from "lucide-react";
 import { useLandingPageFilters, useLandingPages } from "@/hooks/use-pages";
-import { BrandTabs } from "./shared";
+import { BrandTabs, DEFAULT_PAGE_SIZE, Pagination } from "./shared";
 import { cn } from "@/lib/utils";
-
-const PAGE_SIZE = 50;
 
 /**
  * The landing pages an ad points at.
@@ -23,6 +21,7 @@ export function LandingPagesView() {
   const [language, setLanguage] = useState("");
   const [angle, setAngle] = useState("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   const params = useMemo(
     () => ({
@@ -30,17 +29,16 @@ export function LandingPagesView() {
       q: search.trim() || undefined,
       language: language || undefined,
       angle: angle || undefined,
-      limit: PAGE_SIZE,
-      offset: page * PAGE_SIZE,
+      limit: pageSize,
+      offset: page * pageSize,
     }),
-    [brand, search, language, angle, page],
+    [brand, search, language, angle, page, pageSize],
   );
 
   const { data, isLoading, error } = useLandingPages(params);
   const { data: filters } = useLandingPageFilters(brand || undefined);
 
   const total = data?.total ?? 0;
-  const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
 
   /** Any filter change puts you back on the first page of the new result. */
   function change<T>(setter: (value: T) => void) {
@@ -48,6 +46,24 @@ export function LandingPagesView() {
       setter(value);
       setPage(0);
     };
+  }
+
+  /**
+   * Changing brand clears the filters that belong to the old one.
+   *
+   * Angle and language are a brand's own vocabulary: "Stress relief" is a
+   * Numy angle and Holy has nothing like it. Carrying the selection across
+   * asked for Holy landers with a Numy angle, which matches nothing — so the
+   * screen went empty and stayed empty, and the only way out was to go back,
+   * clear it, and return. Both dropdowns had also already reloaded with the
+   * new brand's values, so the filter doing the damage was not even visible
+   * in them.
+   */
+  function changeBrand(next: string) {
+    setBrand(next);
+    setLanguage("");
+    setAngle("");
+    setPage(0);
   }
 
   return (
@@ -59,7 +75,7 @@ export function LandingPagesView() {
       </p>
 
       <div className="mt-6 flex flex-col gap-3">
-        <BrandTabs value={brand} onChange={change(setBrand)} allowAll />
+        <BrandTabs value={brand} onChange={changeBrand} allowAll />
 
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative flex-1 min-w-[240px]">
@@ -169,45 +185,17 @@ export function LandingPagesView() {
         </table>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-xs text-muted">
-        <span className="tabular-nums">
-          {total === 0 ? "No results" : `${page * PAGE_SIZE + 1}–${Math.min(total, (page + 1) * PAGE_SIZE)} of ${total}`}
-        </span>
-        <div className="flex gap-1.5">
-          <PageButton disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </PageButton>
-          <PageButton disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>
-            Next
-          </PageButton>
-        </div>
-      </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
+        label="landing pages"
+      />
     </div>
-  );
-}
-
-function PageButton({
-  disabled,
-  onClick,
-  children,
-}: {
-  disabled: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "rounded-lg border border-border px-3 py-1.5 font-medium transition-colors",
-        disabled
-          ? "cursor-not-allowed text-faint"
-          : "text-muted hover:bg-white/5 hover:text-foreground",
-      )}
-    >
-      {children}
-    </button>
   );
 }
