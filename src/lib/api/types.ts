@@ -208,6 +208,7 @@ export interface MetaUploadOptions {
   ad_account_id?: string | null;
   default_cta: string;
   campaign_options: Record<string, string>;
+  campaign_status?: Record<string, string>;
   page_options: Array<{ id: string; name: string }>;
   defaults: Record<string, unknown>;
   product_url?: string | null;

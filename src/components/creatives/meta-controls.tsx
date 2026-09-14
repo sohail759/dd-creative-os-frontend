@@ -236,6 +236,7 @@ export function MetaControls({
           creative={creative}
           defaults={defaults}
           campaigns={uploadOptions.data?.campaign_options ?? {}}
+          campaignStatus={uploadOptions.data?.campaign_status ?? {}}
           pages={uploadOptions.data?.page_options ?? []}
           loading={uploadOptions.isLoading}
           busy={busy}
@@ -257,6 +258,7 @@ function UploadForm({
   creative,
   defaults,
   campaigns,
+  campaignStatus,
   pages,
   loading,
   busy,
@@ -279,6 +281,8 @@ function UploadForm({
     video: string;
   };
   campaigns: Record<string, string>;
+  /** campaign id -> ACTIVE / PAUSED, so a paused one reads as a choice. */
+  campaignStatus?: Record<string, string>;
   pages: Array<{ id: string; name: string }>;
   loading: boolean;
   busy: boolean;
@@ -335,12 +339,25 @@ function UploadForm({
             onChange={(e) => setForm((s) => ({ ...s, campaign_id: e.target.value }))}
             className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground"
           >
-            {Object.entries(campaigns).map(([lang, campaignId]) => (
-              <option key={`${lang}-${campaignId}`} value={campaignId}>
-                {lang} — {campaignId}
-              </option>
-            ))}
+            {Object.entries(campaigns).map(([name, campaignId]) => {
+              // The state belongs in the label. An account can have nothing
+              // active — Holy Mouthwash has seven campaigns and not one is
+              // live — so hiding paused ones leaves nothing to choose, and
+              // showing them without saying so hides which are running.
+              const status = campaignStatus?.[campaignId];
+              const suffix = status && status !== "ACTIVE" ? ` · ${status.toLowerCase()}` : "";
+              return (
+                <option key={`${name}-${campaignId}`} value={campaignId}>
+                  {name}{suffix} — {campaignId}
+                </option>
+              );
+            })}
           </select>
+          {Object.keys(campaigns).length === 0 && (
+            <span className="text-warning">
+              No campaign on this ad account. Set one in the brand pack.
+            </span>
+          )}
         </label>
 
         <Field
