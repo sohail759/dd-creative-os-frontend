@@ -14,6 +14,10 @@ import {
   LogOut,
   Users,
   RefreshCw,
+  Link2,
+  Megaphone,
+  HeartPulse,
+  Target,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -46,6 +50,28 @@ const NAV_SECTIONS: NavSection[] = [
     entries: [
       { label: "Ads Performance", href: "/analytics", icon: BarChart3 },
       { label: "Concepts Intelligence", href: "/intelligence", icon: Brain },
+    ],
+  },
+  {
+    // Two different things share the word "page" and the sidebar has to keep
+    // them apart: a landing page is the URL an ad points AT, a Facebook page
+    // is the Meta object it posts FROM. Health is the third because it is an
+    // action, not a list — it re-reads the second from Meta.
+    label: "Pages",
+    entries: [
+      { label: "Landing Pages", href: "/pages/landing", icon: Link2 },
+      { label: "Facebook Pages", href: "/pages/facebook", icon: Megaphone },
+      { label: "Pages Health", href: "/pages/health", icon: HeartPulse },
+    ],
+  },
+  {
+    // Where an ad ends up, as opposed to what it posts from. Not inside
+    // Pages, because a campaign is not a page — and not inside Manage,
+    // because whoever runs an upload needs to see it and Manage is admins
+    // only.
+    label: "Meta",
+    entries: [
+      { label: "Campaigns & Ad Sets", href: "/meta-structure", icon: Target },
     ],
   },
   {

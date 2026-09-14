@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useSearchParams } from "next/navigation";
 import { LayoutGrid, RefreshCw, Search, Table2 } from "lucide-react";
@@ -87,6 +87,29 @@ export default function CreativesPage() {
     const query = params.toString();
     window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
   }, [debouncedSearch]);
+
+  /**
+   * A search term does not survive a change of brand.
+   *
+   * The brand comes from the URL and this page does not remount when it
+   * changes, so "B438" typed while looking at Numy stayed in the box under
+   * Holy, matched nothing, and left the screen looking empty rather than
+   * filtered. A batch name belongs to one brand.
+   *
+   * The phase filter is deliberately kept: Write, Upload and Launch mean the
+   * same thing everywhere, so carrying it across is what you want.
+   */
+  const previousBrand = useRef(currentBrand);
+  useEffect(() => {
+    if (previousBrand.current === currentBrand) return;
+    previousBrand.current = currentBrand;
+    setSearchInput("");
+    setSearchFilter("");
+    const params = new URLSearchParams(window.location.search);
+    params.delete("q");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/creatives?${query}` : "/creatives");
+  }, [currentBrand]);
 
   // First 100 items of the current filter, most recently edited first.
   const items = useMemo(() => data?.pages.flat() ?? [], [data]);
