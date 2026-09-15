@@ -514,6 +514,12 @@ export interface ConceptGroup {
   ad_count: number;
   runnable: boolean;
   kpis: AnalyticsKpis;
+  /** The Analyst Agent's latest classification for this concept, e.g.
+   * "Grand slam winner" — empty when the Analyst has not run on it yet. */
+  classification?: string;
+  /** True once the Analyst reached a final decided verdict (no per-page
+   * blocker); undefined/null when it has never run. */
+  analyst_decided?: boolean | null;
 }
 
 export interface ConceptListResponse {
@@ -522,6 +528,26 @@ export interface ConceptListResponse {
   limit: number;
   offset: number;
   has_more: boolean;
+}
+
+/** One Analyst pass, as recorded durably rather than held in a browser tab. */
+export interface ConceptRunRecord {
+  id: string;
+  brand: string;
+  kind: string;
+  status: "running" | "ok" | "failed";
+  progress: {
+    key: string;
+    step: string;
+    status: "pending" | "in_progress" | "done" | "failed" | "skipped";
+    error?: string | null;
+  }[];
+  payload?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  error?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_ms?: number | null;
 }
 
 export interface ConceptDetail {

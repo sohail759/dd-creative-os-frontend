@@ -26,23 +26,73 @@ export function useIntelligenceConcept(conceptName: string, brand = "numy") {
   });
 }
 
-const RUNNING_STATUSES = new Set([
-  "PENDING",
-  "STARTED",
-  "RECEIVED",
-  "RETRY",
-  "queued",
-]);
 
+/**
+ * The durable status of the last Analyst pass over a concept.
+ *
+ * Read from the run records rather than Celery's result backend, so closing
+ * the page does not lose the answer. A pass takes minutes; whoever pressed
+ * the button needs a way back to "did that finish", and a task id held in a
+ * browser tab is not one.
+ */
+export function useConceptRunStatus(
+  conceptName: string,
+  brand = "numy",
+  /**
+   * When a run was dispatched from this page, as epoch ms.
+   *
+   * Polling on `status === "running"` alone was not enough. Dispatch returns
+   * as soon as the task is QUEUED, and the worker may not have opened the run
+   * record yet, so the refetch that follows still sees the PREVIOUS run —
+   * finished — and polling never starts. The page then sat on a stale status
+   * until someone reloaded it.
+   *
+   * Knowing when we asked lets the hook keep polling until a run that started
+   * after that moment appears.
+   */
+  dispatchedAt?: number,
+) {
+  return useQuery({
+    queryKey: ["intelligence", "run-status", conceptName, brand],
+    queryFn: () => api.getConceptRunStatus(conceptName, brand),
+    enabled: !!conceptName,
+    // The global 60s staleTime is for lists, not for something being watched.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: (query) => {
+      const run = query.state.data?.run;
+      if (run?.status === "running") return 5_000;
+      if (!dispatchedAt) return false;
+      // Still waiting for the worker to pick the task up. Give it two minutes
+      // before concluding nothing is coming, so a busy queue does not leave
+      // the page polling for ever.
+      if (Date.now() - dispatchedAt > 120_000) return false;
+      const started = run?.started_at ? Date.parse(run.started_at) : 0;
+      return started >= dispatchedAt ? false : 3_000;
+    },
+  });
+}
+
+/**
+ * Dispatch an Analyst pass and return immediately.
+ *
+ * It used to await the whole run, which meant the confirm dialog stayed open
+ * for the nine minutes a pass takes and any navigation threw the result
+ * away. Dispatch is the mutation; watching is `useConceptRunStatus`.
+ */
 export function useRunIntelligenceConcept() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       conceptName,
       brand = "numy",
-      datePreset = "last_30d",
+      // No window. The Analyst classifies on LIFETIME totals — its
+      // thresholds are lifetime-scale — and sending one here overrode that
+      // server-side default, so the button judged a month while the weekly
+      // pass judged all time.
+      datePreset,
       since,
       until,
     }: {
@@ -51,45 +101,19 @@ export function useRunIntelligenceConcept() {
       datePreset?: string;
       since?: string;
       until?: string;
-    }) => {
-      const dispatched = await api.runIntelligenceConcept(
-        conceptName,
-        brand,
-        datePreset,
-        since,
-        until
+    }) => api.runIntelligenceConcept(conceptName, brand, datePreset, since, until),
+    onSuccess: (_data, variables) => {
+      toast(
+        "info",
+        "Analysis started",
+        "It runs in the background. Progress shows on this page, and on the Analyst Agent Runs screen.",
       );
-
-      // Poll the Celery task until it reaches a terminal state.
-      for (let i = 0; i < 180; i++) {
-        const res = await api.getIntelligenceConceptRun(
-          dispatched.task_id,
-          conceptName,
-          brand,
-          datePreset,
-          since,
-          until
-        );
-        const status = res.status ?? "";
-        if (!RUNNING_STATUSES.has(status)) {
-          return res;
-        }
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-      throw new Error("Analysis timed out while waiting for the worker.");
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["intelligence"] });
-      if (data.gated) {
-        toast("info", "Analyst disabled", data.gate_message || data.message);
-      } else if (data.ok) {
-        toast("success", "Analysis complete", data.message);
-      } else {
-        toast("error", "Analysis needs review", data.message);
-      }
+      queryClient.invalidateQueries({
+        queryKey: ["intelligence", "run-status", variables.conceptName],
+      });
     },
     onError: (error: Error) => {
-      toast("error", "Analysis failed", error.message);
+      toast("error", "Could not start analysis", error.message);
     },
   });
 }

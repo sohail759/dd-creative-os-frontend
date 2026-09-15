@@ -1,4 +1,5 @@
 import type {
+  ConceptRunRecord,
   AnalyticsResponse,
   AgentConfig,
   AgentConfigUpdate,
@@ -90,6 +91,10 @@ export interface ApiClient {
     offset?: number,
   ): Promise<ConceptListResponse>;
   getIntelligenceConcept(conceptName: string, brand?: string): Promise<ConceptDetail>;
+  getConceptRunStatus(
+    conceptName: string,
+    brand?: string
+  ): Promise<{ run: ConceptRunRecord | null }>;
   runIntelligenceConcept(
     conceptName: string,
     brand?: string,
