@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -183,7 +183,26 @@ function isPlaceholderAd(ad: IntelligenceAd): boolean {
  * here after navigating away and back. A pass takes minutes; the answer has
  * to outlive the tab that started it.
  */
-function RunStatusPanel({ run }: { run?: ConceptRunRecord | null }) {
+function RunStatusPanel({
+  run,
+  waiting,
+}: {
+  run?: ConceptRunRecord | null;
+  waiting?: boolean;
+}) {
+  // Dispatched, not yet picked up. Showing the previous run here would read
+  // as "already finished" for something that has not started.
+  if (waiting) {
+    return (
+      <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+          <p className="text-sm font-semibold text-foreground">Analysis queued</p>
+          <span className="text-xs text-muted">waiting for a worker to pick it up</span>
+        </div>
+      </div>
+    );
+  }
   if (!run) return null;
 
   const running = run.status === "running";
@@ -268,8 +287,31 @@ export default function ConceptDetailPage() {
 
   const { data, isLoading, error } = useIntelligenceConcept(conceptName, brand);
   const runMutation = useRunIntelligenceConcept();
-  const runStatus = useConceptRunStatus(conceptName, brand);
+  // When we last asked for a run, so the status hook keeps polling through
+  // the gap between the task being queued and the worker opening its run.
+  const [dispatchedAt, setDispatchedAt] = useState<number | undefined>();
+  const runStatus = useConceptRunStatus(conceptName, brand, dispatchedAt);
   const [showRunDialog, setShowRunDialog] = useState(false);
+
+  // Dispatched, but the worker has not opened its run record yet. Without
+  // this the page shows the PREVIOUS run's outcome and reads as finished.
+  const latestStart = runStatus.data?.run?.started_at
+    ? Date.parse(runStatus.data.run.started_at)
+    : 0;
+  const waitingForWorker = Boolean(dispatchedAt && latestStart < dispatchedAt);
+
+  // A worker that picked the task up makes `waitingForWorker` false on its
+  // own, since the run it opened started after we asked. This timer is only
+  // for the other case: nothing ever picks it up, and the page would otherwise
+  // sit on "queued" for ever.
+  useEffect(() => {
+    if (!dispatchedAt) return;
+    const timer = setTimeout(
+      () => setDispatchedAt(undefined),
+      Math.max(0, dispatchedAt + 120_000 - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [dispatchedAt]);
 
   const detail: ConceptDetail | undefined = data;
   const displayConceptName = (() => {
@@ -302,6 +344,7 @@ export default function ConceptDetailPage() {
   function handleRunConfirm() {
     // Window deliberately omitted: the server decides, and it decides
     // lifetime. See `useRunIntelligenceConcept`.
+    setDispatchedAt(Date.now());
     runMutation.mutate({ conceptName, brand });
     // Closed on dispatch, not on completion. A pass takes minutes and runs
     // without this page; holding the dialog open for it only trapped the
@@ -406,20 +449,26 @@ export default function ConceptDetailPage() {
           */}
           <button
             onClick={() => setShowRunDialog(true)}
-            disabled={runMutation.isPending || runStatus.data?.run?.status === "running"}
+            disabled={
+              runMutation.isPending ||
+              waitingForWorker ||
+              runStatus.data?.run?.status === "running"
+            }
             className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             <Sparkles
               className={`h-3.5 w-3.5 ${runMutation.isPending ? "animate-pulse" : ""}`}
             />
-            {runStatus.data?.run?.status === "running" || runMutation.isPending
+            {runStatus.data?.run?.status === "running" ||
+            runMutation.isPending ||
+            waitingForWorker
               ? "Running..."
               : "Run Analysis"}
           </button>
         </div>
       </header>
 
-      <RunStatusPanel run={runStatus.data?.run} />
+      <RunStatusPanel run={runStatus.data?.run} waiting={waitingForWorker} />
 
       <ConceptPerformancePanel conceptName={conceptName} brand={brand} />
 

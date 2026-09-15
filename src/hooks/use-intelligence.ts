@@ -35,14 +35,41 @@ export function useIntelligenceConcept(conceptName: string, brand = "numy") {
  * the button needs a way back to "did that finish", and a task id held in a
  * browser tab is not one.
  */
-export function useConceptRunStatus(conceptName: string, brand = "numy") {
+export function useConceptRunStatus(
+  conceptName: string,
+  brand = "numy",
+  /**
+   * When a run was dispatched from this page, as epoch ms.
+   *
+   * Polling on `status === "running"` alone was not enough. Dispatch returns
+   * as soon as the task is QUEUED, and the worker may not have opened the run
+   * record yet, so the refetch that follows still sees the PREVIOUS run —
+   * finished — and polling never starts. The page then sat on a stale status
+   * until someone reloaded it.
+   *
+   * Knowing when we asked lets the hook keep polling until a run that started
+   * after that moment appears.
+   */
+  dispatchedAt?: number,
+) {
   return useQuery({
     queryKey: ["intelligence", "run-status", conceptName, brand],
     queryFn: () => api.getConceptRunStatus(conceptName, brand),
     enabled: !!conceptName,
-    // Only poll while something is actually running.
-    refetchInterval: (query) =>
-      query.state.data?.run?.status === "running" ? 5_000 : false,
+    // The global 60s staleTime is for lists, not for something being watched.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: (query) => {
+      const run = query.state.data?.run;
+      if (run?.status === "running") return 5_000;
+      if (!dispatchedAt) return false;
+      // Still waiting for the worker to pick the task up. Give it two minutes
+      // before concluding nothing is coming, so a busy queue does not leave
+      // the page polling for ever.
+      if (Date.now() - dispatchedAt > 120_000) return false;
+      const started = run?.started_at ? Date.parse(run.started_at) : 0;
+      return started >= dispatchedAt ? false : 3_000;
+    },
   });
 }
 

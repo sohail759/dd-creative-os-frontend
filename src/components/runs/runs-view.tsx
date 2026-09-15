@@ -204,8 +204,16 @@ export function RunsView({
     queryKey: [queryKey, brand, status, page, pageSize],
     queryFn: () =>
       fetcher({ brand, status, limit: pageSize, offset: (page - 1) * pageSize }),
-    // A running job changes while you watch it.
-    refetchInterval: 15_000,
+    // The global 60s staleTime is for lists nobody is watching. This one is
+    // watched, so navigating to it must show the current state rather than
+    // whatever was cached on the last visit.
+    staleTime: 0,
+    refetchOnMount: "always",
+    // Fast while something is in flight, slow when nothing is.
+    refetchInterval: (query) =>
+      (query.state.data?.items ?? []).some((r) => r.status === "running")
+        ? 4_000
+        : 20_000,
   });
 
   const runs = data?.items ?? [];
