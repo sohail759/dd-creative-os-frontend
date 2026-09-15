@@ -8,9 +8,6 @@ import {
   Brain,
   ChevronLeft,
   DollarSign,
-  Eye,
-  MousePointerClick,
-  ShoppingCart,
   Layers,
   Loader2,
   AlertTriangle,
@@ -22,25 +19,18 @@ import {
 } from "lucide-react";
 
 import {
+  useConceptRunStatus,
   useIntelligenceConcept,
   useRunIntelligenceConcept,
 } from "@/hooks/use-intelligence";
+import { ConceptPerformancePanel } from "@/components/intelligence/concept-performance";
 import type {
   ConceptDetail,
-  AnalyticsKpis,
   AnalystPayload,
   IntelligenceAd,
-  ConceptRunResult,
+  ConceptRunRecord,
 } from "@/lib/api/types";
 
-const WINDOWS = [
-  { value: "last_7d", label: "Last 7 days" },
-  { value: "last_14d", label: "Last 14 days" },
-  { value: "last_30d", label: "Last 30 days" },
-  { value: "last_90d", label: "Last 90 days" },
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-];
 
 function ConfirmDialog({
   open,
@@ -117,39 +107,6 @@ function KpiCard({
   );
 }
 
-function KpiCards({ kpis }: { kpis: AnalyticsKpis }) {
-  const money = (n: number) =>
-    n > 0
-      ? `$${n.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`
-      : "—";
-  const num = (n: number) => (n > 0 ? n.toLocaleString() : "—");
-  const pct = (n: number) => (n > 0 ? `${n.toFixed(2)}%` : "—");
-  const items = [
-    { label: "Spend", value: money(kpis.spend), icon: DollarSign },
-    { label: "Impressions", value: num(kpis.impressions), icon: Eye },
-    { label: "Clicks", value: num(kpis.clicks), icon: MousePointerClick },
-    { label: "Purchases", value: num(kpis.purchases), icon: ShoppingCart },
-    { label: "CTR", value: pct(kpis.ctr), icon: MousePointerClick },
-    { label: "ROAS", value: kpis.roas > 0 ? kpis.roas.toFixed(2) : "—", icon: DollarSign },
-  ];
-  return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {items.map((k) => (
-        <KpiCard key={k.label} label={k.label} value={k.value} icon={k.icon} />
-      ))}
-    </section>
-  );
-}
-
-function statusColor(s: string) {
-  if (s === "ACTIVE") return "text-emerald-400";
-  if (s === "PAUSED") return "text-yellow-400";
-  return "text-muted";
-}
-
 function formatFieldLabel(key: string) {
   return key
     .replace(/_/g, " ")
@@ -219,82 +176,86 @@ function isPlaceholderAd(ad: IntelligenceAd): boolean {
   return !campaign && !adset && !creative && status === "PAUSED" && !!name;
 }
 
-function RunResultPanel({
-  result,
-  error,
-}: {
-  result?: ConceptRunResult | null;
-  error?: Error | null;
-}) {
-  if (result && result.ok) return null;
+/**
+ * The last Analyst pass over this concept, running or finished.
+ *
+ * Driven by the recorded run rather than by the mutation, so it is still
+ * here after navigating away and back. A pass takes minutes; the answer has
+ * to outlive the tab that started it.
+ */
+function RunStatusPanel({ run }: { run?: ConceptRunRecord | null }) {
+  if (!run) return null;
 
-  const hardStops = result?.hard_stops ?? [];
-  const failedChecks = (result?.audit?.checks ?? []).filter((c) => !c.ok);
+  const running = run.status === "running";
+  const ok = run.status === "ok";
+  const tone = running
+    ? "border-amber-500/30 bg-amber-500/10"
+    : ok
+      ? "border-emerald-500/30 bg-emerald-500/10"
+      : "border-red-500/30 bg-red-500/10";
+  const heading = running
+    ? "Analysis running"
+    : ok
+      ? "Analysis complete"
+      : "Analysis needs review";
+
+  const seconds = Math.round((run.duration_ms ?? 0) / 1000);
+  const took =
+    !running && seconds > 0
+      ? seconds < 90
+        ? `${seconds}s`
+        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+      : "";
 
   return (
-    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-      <div className="flex items-start gap-3">
-        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-amber-300">
-            {result?.gated
-              ? "Analyst disabled for this concept"
-              : result
-                ? "Analysis did not complete — validation issues"
-                : "Analysis failed"}
-          </p>
-
-          {(error || (result && !result.ok)) && (
-            <p className="mt-1.5 whitespace-pre-line text-sm text-amber-200/90">
-              {result?.gate_message || result?.message || error?.message}
-            </p>
-          )}
-
-          {hardStops.length > 0 && (
-            <div className="mt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-400/80">
-                Hard stops
-              </p>
-              <ul className="mt-1 space-y-1">
-                {hardStops.map((stop, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-amber-200/90">
-                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    {stop}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {failedChecks.length > 0 && (
-            <div className="mt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-400/80">
-                Failed audit checks
-              </p>
-              <ul className="mt-1 space-y-1">
-                {failedChecks.map((check) => (
-                  <li key={check.key} className="flex items-start gap-2 text-sm text-amber-200/90">
-                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    <span>
-                      <span className="font-medium">{check.label}</span>
-                      {check.detail ? ` — ${check.detail}` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {result?.audit?.passed === false && result?.audit?.checks?.length > 0 && failedChecks.length === 0 && (
-            <div className="mt-3 rounded-lg border border-amber-500/20 bg-black/10 p-3">
-              <p className="flex items-center gap-2 text-sm text-amber-200/90">
-                <CheckCircle2 className="h-4 w-4 text-amber-300" />
-                Audit ran but the analysis was still flagged. Review the message above.
-              </p>
-            </div>
-          )}
-        </div>
+    <div className={`mt-4 rounded-2xl border p-4 ${tone}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {running ? (
+          <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+        ) : ok ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        ) : (
+          <ShieldAlert className="h-4 w-4 text-red-400" />
+        )}
+        <p className="text-sm font-semibold text-foreground">{heading}</p>
+        {run.started_at && (
+          <span className="text-xs text-muted">
+            started {new Date(run.started_at).toLocaleString()}
+          </span>
+        )}
+        {took && <span className="text-xs text-muted">took {took}</span>}
       </div>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {(run.progress ?? []).map((step) => (
+          <span
+            key={step.key}
+            className="flex items-center gap-1.5 text-xs"
+            title={step.error || undefined}
+          >
+            {step.status === "done" ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            ) : step.status === "failed" ? (
+              <XCircle className="h-3.5 w-3.5 text-red-400" />
+            ) : step.status === "in_progress" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+            ) : (
+              <span className="h-3.5 w-3.5 rounded-full border border-border" />
+            )}
+            <span
+              className={
+                step.status === "done" ? "text-foreground" : "text-muted"
+              }
+            >
+              {step.step}
+            </span>
+          </span>
+        ))}
+      </div>
+
+      {run.error && (
+        <p className="mt-2 whitespace-pre-wrap text-xs text-red-300">{run.error}</p>
+      )}
     </div>
   );
 }
@@ -307,8 +268,7 @@ export default function ConceptDetailPage() {
 
   const { data, isLoading, error } = useIntelligenceConcept(conceptName, brand);
   const runMutation = useRunIntelligenceConcept();
-  const [window, setWindow] = useState("last_30d");
-  const [offset, setOffset] = useState(0);
+  const runStatus = useConceptRunStatus(conceptName, brand);
   const [showRunDialog, setShowRunDialog] = useState(false);
 
   const detail: ConceptDetail | undefined = data;
@@ -340,12 +300,13 @@ export default function ConceptDetailPage() {
   })();
 
   function handleRunConfirm() {
-    runMutation.mutate(
-      { conceptName, brand, datePreset: window },
-      {
-        onSuccess: () => setShowRunDialog(false),
-      },
-    );
+    // Window deliberately omitted: the server decides, and it decides
+    // lifetime. See `useRunIntelligenceConcept`.
+    runMutation.mutate({ conceptName, brand });
+    // Closed on dispatch, not on completion. A pass takes minutes and runs
+    // without this page; holding the dialog open for it only trapped the
+    // operator in front of a spinner.
+    setShowRunDialog(false);
   }
 
   if (isLoading) {
@@ -379,12 +340,7 @@ export default function ConceptDetailPage() {
     }
     return out;
   })();
-  const filteredOutCount = Math.max(0, rawAds.length - ads.length);
   const analystByAd = detail?.analyst_by_ad ?? {};
-  const total = ads.length;
-  const limit = detail?.limit ?? 200;
-  const hasMore = detail?.has_more ?? false;
-  const kpis = (detail?.kpis ?? {}) as AnalyticsKpis;
   const analystPayloads: AnalystPayload[] = (() => {
     const fromMap = Object.values(analystByAd ?? {});
     if (fromMap.length > 0) return fromMap;
@@ -413,7 +369,7 @@ export default function ConceptDetailPage() {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <Link
-            href={`/intelligence?brand=${brand}`}
+            href={`/concepts-analysis?brand=${brand}`}
             className="text-muted transition-colors hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -450,24 +406,22 @@ export default function ConceptDetailPage() {
           */}
           <button
             onClick={() => setShowRunDialog(true)}
-            disabled={runMutation.isPending}
+            disabled={runMutation.isPending || runStatus.data?.run?.status === "running"}
             className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             <Sparkles
               className={`h-3.5 w-3.5 ${runMutation.isPending ? "animate-pulse" : ""}`}
             />
-            {runMutation.isPending ? "Running..." : "Run Analytics"}
+            {runStatus.data?.run?.status === "running" || runMutation.isPending
+              ? "Running..."
+              : "Run Analysis"}
           </button>
         </div>
       </header>
 
-      {!runMutation.isPending && (runMutation.data || runMutation.error) && (
-        <RunResultPanel result={runMutation.data} error={runMutation.error} />
-      )}
+      <RunStatusPanel run={runStatus.data?.run} />
 
-      <div className="mt-6">
-        <KpiCards kpis={kpis} />
-      </div>
+      <ConceptPerformancePanel conceptName={conceptName} brand={brand} />
 
       <div className="mt-6 rounded-2xl border border-border bg-panel p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
@@ -590,74 +544,6 @@ export default function ConceptDetailPage() {
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-border bg-panel">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Layers className="h-4 w-4 text-accent" />
-          <h3 className="text-sm font-semibold text-foreground">
-            Ads in this concept
-          </h3>
-          <span className="ml-auto text-xs text-muted">{total}</span>
-        </div>
-        {filteredOutCount > 0 && (
-          <p className="border-b border-border/50 px-4 py-2 text-[11px] text-faint">
-            Filtered {filteredOutCount} duplicate/placeholder ad
-            {filteredOutCount === 1 ? "" : "s"}.
-          </p>
-        )}
-        {ads.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">
-            No ads match this concept yet. Run analytics to pull fresh data.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-[10px] uppercase tracking-wider text-faint">
-                  <th className="p-2 pl-4 pr-4">Ad</th>
-                  <th className="p-2 pr-4">Status</th>
-                  <th className="p-2 pr-4">Campaign</th>
-                  <th className="p-2 pr-4">Ad Set</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ads.map((ad) => (
-                  <tr
-                    key={ad.id}
-                    className="border-b border-border/50 last:border-0"
-                  >
-                    <td className="py-2.5 pl-4 pr-4 font-medium text-foreground">
-                      {ad.name}
-                    </td>
-                    <td
-                      className={`py-2.5 pr-4 font-medium ${statusColor(ad.status)}`}
-                    >
-                      {ad.status}
-                    </td>
-                    <td className="py-2.5 pr-4 text-muted">
-                      {ad.campaign_name || ad.campaign_id || "—"}
-                    </td>
-                    <td className="py-2.5 pr-4 text-muted max-w-[200px] truncate">
-                      {ad.adset_id || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {hasMore && (
-          <div className="flex items-center justify-end border-t border-border/50 px-4 py-3">
-            <button
-              onClick={() => setOffset(offset + limit)}
-              className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-white/5 hover:text-foreground"
-            >
-              Load more
-            </button>
-          </div>
-        )}
-      </div>
-
       {analyst && (
         <div className="mt-6 rounded-2xl border border-border bg-panel p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-foreground">Stored Analyst Data</h3>
@@ -690,11 +576,10 @@ export default function ConceptDetailPage() {
         open={showRunDialog}
         title="Run analyst for this concept?"
         message={
-          "This runs the full Analyst Agent pipeline for " +
-          `${conceptName.toUpperCase()} over "${(
-            WINDOWS.find((w) => w.value === window)?.label ?? window
-          ).toLowerCase()}". It pulls Meta metrics, classifies each ad, and ` +
-            "writes value blocks and learnings to Notion. Continue?"
+          `This runs the full Analyst Agent pipeline for ${conceptName.toUpperCase()} ` +
+          "on its LIFETIME totals across every ad whose name resolves to it. " +
+          "It classifies the concept, diagnoses where it breaks, and writes " +
+          "learnings and value blocks. Continue?"
         }
         onConfirm={handleRunConfirm}
         onCancel={() => setShowRunDialog(false)}

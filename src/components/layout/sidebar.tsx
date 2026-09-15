@@ -18,6 +18,7 @@ import {
   Megaphone,
   HeartPulse,
   Target,
+  DatabaseZap,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -48,8 +49,8 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Analytics",
     adminOnly: true,
     entries: [
-      { label: "Ads Performance", href: "/analytics", icon: BarChart3 },
-      { label: "Concepts Intelligence", href: "/intelligence", icon: Brain },
+      { label: "Brands Analytics", href: "/brands-analytics", icon: BarChart3 },
+      { label: "Concepts Analysis", href: "/concepts-analysis", icon: Brain },
     ],
   },
   {
@@ -72,6 +73,18 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Meta",
     entries: [
       { label: "Campaigns & Ad Sets", href: "/meta-structure", icon: Target },
+    ],
+  },
+  {
+    // The scheduled jobs, as history rather than as settings. Their own
+    // section because they answer a different question from every screen
+    // above: not "what do the numbers say" but "did the thing that produces
+    // the numbers actually run".
+    label: "Jobs",
+    adminOnly: true,
+    entries: [
+      { label: "Meta Snapshot Runs", href: "/runs/meta-sync", icon: DatabaseZap },
+      { label: "Analyst Agent Runs", href: "/runs/analyst", icon: Bot },
     ],
   },
   {

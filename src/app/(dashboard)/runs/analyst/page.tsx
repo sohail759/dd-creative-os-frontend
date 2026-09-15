@@ -1,11 +1,11 @@
 import { AdminOnly } from "@/components/auth/admin-only";
-import { AnalyticsPageView } from "./view";
+import { AnalystRunsView } from "./view";
 
-/** Admin-gated. The view itself is the client page this replaced. */
+/** Admin-gated, like the rest of Analytics. */
 export default function Page() {
   return (
     <AdminOnly>
-      <AnalyticsPageView />
+      <AnalystRunsView />
     </AdminOnly>
   );
 }

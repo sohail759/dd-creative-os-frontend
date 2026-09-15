@@ -8,6 +8,17 @@ import { Brain, Loader2, AlertTriangle, Search, Layers } from "lucide-react";
 
 import { useIntelligenceConcepts } from "@/hooks/use-intelligence";
 import type { ConceptGroup } from "@/lib/api/types";
+import { Badge, type Tone } from "@/components/pages/shared";
+
+/** Classification -> badge tone. Winners read good, Loser reads bad, an
+ * inconclusive read (or no verdict yet) reads muted rather than alarming. */
+function classificationTone(classification: string): Tone {
+  const c = classification.toLowerCase();
+  if (c.includes("winner")) return "good";
+  if (c === "loser") return "bad";
+  if (c === "false winner") return "warn";
+  return "muted";
+}
 
 function fmt(n: number | undefined | null) {
   if (n == null || Number.isNaN(n)) return "—";
@@ -33,7 +44,7 @@ function formatConceptName(name: string) {
     .join("");
 }
 
-export function IntelligencePageView() {
+export function ConceptsAnalysisPageView() {
   const searchParams = useSearchParams();
   const brand = searchParams.get("brand") ?? "numy";
   const [offset, setOffset] = useState(0);
@@ -83,7 +94,7 @@ export function IntelligencePageView() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Brain className="h-5 w-5 text-accent" />
-            Intelligence
+            Concepts Analysis
           </h1>
           <p className="mt-1 text-sm text-muted">
             Rate cards for{" "}
@@ -157,7 +168,7 @@ export function IntelligencePageView() {
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-panel py-16 text-center">
           <Layers className="mx-auto h-8 w-8 text-faint" />
           <p className="mt-3 text-sm text-muted">
-            No concepts found. Fetch analytics from the Analytics page first, or
+            No concepts found. Fetch analytics from the Brands Analytics page first, or
             try a different search.
           </p>
         </div>
@@ -173,7 +184,7 @@ export function IntelligencePageView() {
           {concepts.map((c) => (
             <Link
               key={c.concept_name}
-              href={`/intelligence/${encodeURIComponent(c.concept_name)}?brand=${brand}`}
+              href={`/concepts-analysis/${encodeURIComponent(c.concept_name)}?brand=${brand}`}
               className="group rounded-2xl border border-border bg-panel p-4 transition-all hover:border-accent/50 hover:shadow-lg"
             >
               <div className="flex items-center justify-between gap-2">
@@ -185,30 +196,45 @@ export function IntelligencePageView() {
                 </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-faint">Spend</span>
-                  <span className="font-medium text-foreground">
-                    {money(c.kpis?.spend)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-faint">ROAS</span>
-                  <span className="font-medium text-foreground">
-                    {fmt(c.kpis?.roas)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-faint">CTR</span>
-                  <span className="font-medium text-foreground">
-                    {fmt(c.kpis?.ctr)}%
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-faint">Purchases</span>
-                  <span className="font-medium text-foreground">
+              <div className="mt-2">
+                {c.classification ? (
+                  <Badge tone={classificationTone(c.classification)}>
+                    {c.classification}
+                  </Badge>
+                ) : (
+                  <Badge tone="muted">Not analyzed</Badge>
+                )}
+              </div>
+
+              {/* Lifetime, not a window: this is what the Analyst classifies
+                  on, so a card and the verdict beside it cannot disagree. */}
+              <div className="mt-3 flex items-baseline justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-faint">
+                  Lifetime spend
+                </span>
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {money(c.kpis?.spend)}
+                </span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2 border-t border-border/50 pt-2 text-xs">
+                <div>
+                  <p className="text-faint">Purchases</p>
+                  <p className="font-medium tabular-nums text-foreground">
                     {fmt(c.kpis?.purchases)}
-                  </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-faint">ROAS</p>
+                  <p className="font-medium tabular-nums text-foreground">
+                    {fmt(c.kpis?.roas)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-faint">CTR</p>
+                  <p className="font-medium tabular-nums text-foreground">
+                    {fmt(c.kpis?.ctr)}%
+                  </p>
                 </div>
               </div>
             </Link>

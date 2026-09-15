@@ -811,6 +811,10 @@ export const mockApi: ApiClient = {
     };
   },
 
+  async getConceptRunStatus() {
+    return { run: null };
+  },
+
   async runIntelligenceConcept(conceptName) {
     await delay(1200);
     return {

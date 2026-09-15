@@ -1,5 +1,6 @@
 import type { ApiClient } from "./client";
 import type {
+  ConceptRunRecord,
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
@@ -608,6 +609,13 @@ export const httpApi: ApiClient = {
     if (offset) params.set("offset", String(offset));
     return request<ConceptListResponse>(
       `/v1/intelligence/concepts?${params.toString()}`
+    );
+  },
+
+  async getConceptRunStatus(conceptName, brand?) {
+    const params = new URLSearchParams({ brand: brand || "numy" });
+    return request<{ run: ConceptRunRecord | null }>(
+      `/v1/intelligence/concepts/${encodeURIComponent(conceptName)}/run-status?${params.toString()}`
     );
   },
 
