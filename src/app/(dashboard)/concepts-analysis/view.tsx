@@ -12,6 +12,14 @@ import { Badge, type Tone } from "@/components/pages/shared";
 
 /** Classification -> badge tone. Winners read good, Loser reads bad, an
  * inconclusive read (or no verdict yet) reads muted rather than alarming. */
+/** A blocker code said the way an operator can act on it. */
+function blockedLabel(code: string): string {
+  if (code.includes("meta_match")) return "No Meta ads matched";
+  if (code.includes("building_blocks")) return "Page data unreadable";
+  if (code.includes("analysis_error")) return "Analysis failed";
+  return "Blocked";
+}
+
 function classificationTone(classification: string): Tone {
   const c = classification.toLowerCase();
   if (c.includes("winner")) return "good";
@@ -188,7 +196,14 @@ export function ConceptsAnalysisPageView() {
               className="group rounded-2xl border border-border bg-panel p-4 transition-all hover:border-accent/50 hover:shadow-lg"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold text-foreground group-hover:text-accent">
+                {/* Concept names now come through as written, so an ACH
+                    concept reads as "B174 - ACH - C4 - ACH-ALKS-4-H4" rather
+                    than collapsing into "B174 C4". They are long enough to
+                    truncate, so the full name is on hover. */}
+                <span
+                  title={c.concept_name}
+                  className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold text-foreground group-hover:text-accent"
+                >
                   {formatConceptName(c.concept_name)}
                 </span>
                 <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted">
@@ -196,13 +211,21 @@ export function ConceptsAnalysisPageView() {
                 </span>
               </div>
 
-              <div className="mt-2">
+              {/* A verdict and a failure are different things. A blocked
+                  concept keeps whatever verdict it last earned, with the
+                  failure shown beside it rather than written over it. */}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {c.classification ? (
                   <Badge tone={classificationTone(c.classification)}>
                     {c.classification}
                   </Badge>
-                ) : (
+                ) : c.blocked_code ? null : (
                   <Badge tone="muted">Not analyzed</Badge>
+                )}
+                {c.blocked_code && (
+                  <Badge tone="warn" title={c.blocked_reason || c.blocked_code}>
+                    {blockedLabel(c.blocked_code)}
+                  </Badge>
                 )}
               </div>
 

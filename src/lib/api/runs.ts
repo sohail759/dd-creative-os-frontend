@@ -15,6 +15,11 @@ export interface RunStep {
   error?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
+  /** How far through a step that iterates has got. Present only on those
+   * steps — the Analyst's `analyze` walks every concept in the brand, and
+   * without a count a ten-hour pass is one motionless spinner. */
+  done?: number | null;
+  total?: number | null;
 }
 
 export interface JobRun {
