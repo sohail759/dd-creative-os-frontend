@@ -80,6 +80,13 @@ function Steps({ steps }: { steps: RunStep[] }) {
           >
             {step.step}
           </span>
+          {/* The number is the whole point on a long step: it separates slow
+              from stuck, which a spinner alone cannot. */}
+          {typeof step.total === "number" && step.total > 0 && (
+            <span className="text-[10px] tabular-nums text-faint">
+              {(step.done ?? 0).toLocaleString()}/{step.total.toLocaleString()}
+            </span>
+          )}
         </div>
       ))}
     </div>

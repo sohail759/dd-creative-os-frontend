@@ -520,6 +520,14 @@ export interface ConceptGroup {
   /** True once the Analyst reached a final decided verdict (no per-page
    * blocker); undefined/null when it has never run. */
   analyst_decided?: boolean | null;
+  /** Why the last pass could not decide this concept, when it could not.
+   *
+   * Distinct from `classification`: "Insufficient data" is a verdict about
+   * spend, while this is the pass failing to reach a verdict at all — a
+   * Notion read that failed, no Meta ads matching the name, an error. Both
+   * used to surface as "Insufficient data", so a failure read as a finding. */
+  blocked_code?: string;
+  blocked_reason?: string;
 }
 
 export interface ConceptListResponse {
