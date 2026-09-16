@@ -781,9 +781,10 @@ export const mockApi: ApiClient = {
       const concept = ad.name.replace(/\s*-\s*(ENG|DE|v\d+).*$/i, "").toLowerCase();
       const key = concept.split(" ").slice(0, 2).join(" ");
       if (!groups.has(key)) {
-        groups.set(key, { concept_name: key, ads: [], ad_count: 0, runnable: true, kpis: { ...MOCK_ANALYTICS.kpis } });
+        // No `ads` array, matching the real list endpoint: it returns a
+        // count, not one object per ad.
+        groups.set(key, { concept_name: key, ad_count: 0, runnable: true, kpis: { ...MOCK_ANALYTICS.kpis } });
       }
-      groups.get(key)!.ads.push(ad);
       groups.get(key)!.ad_count += 1;
     }
     let concepts = [...groups.values()].sort((a, b) => a.concept_name.localeCompare(b.concept_name));

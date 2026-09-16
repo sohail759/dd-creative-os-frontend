@@ -510,7 +510,13 @@ export interface IntelligenceDetail {
 /** A concept (e.g. "B321 C1") with all its ad variants and aggregated KPIs. */
 export interface ConceptGroup {
   concept_name: string;
-  ads: IntelligenceAd[];
+  /** Not returned by the list endpoint.
+   *
+   * It used to send one object per ad, so asking for 24 concepts built every
+   * ad in the brand — 25,035 for numy — and the API process was OOM-killed
+   * serving it. The list needs `ad_count`; per-ad detail comes from the
+   * concept endpoint. */
+  ads?: IntelligenceAd[];
   ad_count: number;
   runnable: boolean;
   kpis: AnalyticsKpis;
