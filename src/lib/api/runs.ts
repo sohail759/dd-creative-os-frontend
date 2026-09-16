@@ -27,7 +27,33 @@ export interface RunConceptCounts {
   pending?: number;
   running?: number;
   done?: number;
+  /** Nothing to analyse, nothing wrong — almost always a concept with no
+   * Meta ads, because Notion carries every concept a batch planned and only
+   * some were ever launched. */
+  skipped?: number;
   failed?: number;
+}
+
+/** One concept's place in a pass, as the runs screen needs it. */
+export interface RunConcept {
+  creative_id: string;
+  name: string;
+  status: "pending" | "running" | "done" | "skipped" | "failed";
+  classification?: string;
+  blocked_code?: string;
+  error?: string;
+  duration_ms?: number | null;
+}
+
+export interface RunConceptPage {
+  items: RunConcept[];
+  total: number;
+  counts: RunConceptCounts;
+  /** How many concepts each blocker accounted for, keyed by blocker code.
+   * A bare count of failures cannot be acted on; grouped by cause it can. */
+  blockers?: Record<string, number>;
+  limit: number;
+  offset: number;
 }
 
 export interface RunConceptTiming {
@@ -46,6 +72,7 @@ export interface JobRun {
   progress: RunStep[];
   concept_counts?: RunConceptCounts;
   concept_timing?: RunConceptTiming;
+  concept_blockers?: Record<string, number>;
   payload: Record<string, unknown>;
   result: Record<string, unknown>;
   ad_account_id?: string | null;
@@ -109,6 +136,25 @@ function query(params: RunQuery): string {
 /** Meta snapshot runs: inventory, the daily pass, and the lifetime pass. */
 export function getSyncRuns(params: RunQuery): Promise<RunPage> {
   return get<RunPage>(`/v1/insights/sync-runs?${query(params)}`);
+}
+
+/** The concepts of one pass, with where each got to and why.
+ *
+ * `status=skipped` is the "nothing to analyse" bucket and `status=failed` the
+ * "something went wrong" one — the distinction the runs screen needs so a few
+ * hundred unlaunched concepts do not bury a handful of real errors. */
+export function getRunConcepts(
+  runId: string,
+  params: { status?: string; search?: string; limit?: number; offset?: number } = {},
+): Promise<RunConceptPage> {
+  const search = new URLSearchParams();
+  if (params.status) search.set("status", params.status);
+  if (params.search) search.set("search", params.search);
+  search.set("limit", String(params.limit ?? 50));
+  search.set("offset", String(params.offset ?? 0));
+  return get<RunConceptPage>(
+    `/v1/analysis/weekly-runs/${encodeURIComponent(runId)}/concepts?${search.toString()}`,
+  );
 }
 
 /** Analyst passes: read the snapshot, classify concepts, save and write back. */

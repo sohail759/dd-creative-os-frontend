@@ -12,6 +12,7 @@ import {
   TimeAgo,
   type Tone,
 } from "@/components/pages/shared";
+import { getRunConcepts } from "@/lib/api/runs";
 import type { JobRun, RunPage, RunQuery, RunStatusFilter, RunStep } from "@/lib/api/runs";
 import { cn } from "@/lib/utils";
 
@@ -121,15 +122,23 @@ function ConceptCounts({
   if (!counts) return null;
   const done = counts.done ?? 0;
   const failed = counts.failed ?? 0;
+  const skipped = counts.skipped ?? 0;
   const running = counts.running ?? 0;
   const pending = counts.pending ?? 0;
-  const total = done + failed + running + pending;
+  const total = done + failed + skipped + running + pending;
   if (!total) return null;
   return (
     <div className="mt-1.5 flex items-center gap-3 text-[10px] tabular-nums text-faint">
       <span className="text-foreground">{done.toLocaleString()} done</span>
       {running > 0 && <span className="text-warning">{running.toLocaleString()} running</span>}
       {pending > 0 && <span>{pending.toLocaleString()} to go</span>}
+      {/* Not a failure: a concept with no Meta ads has nothing to analyse.
+          Shown plainly so it cannot be mistaken for an error. */}
+      {skipped > 0 && (
+        <span title="No Meta ads to analyse — planned in Notion, never launched">
+          {skipped.toLocaleString()} no ads
+        </span>
+      )}
       {failed > 0 && <span className="text-danger">{failed.toLocaleString()} failed</span>}
       <span>of {total.toLocaleString()}</span>
       {/* Pace, and what it implies for the time left. A six-hour pass with no
@@ -171,10 +180,114 @@ function Facts({ title, data }: { title: string; data: Record<string, unknown> }
   );
 }
 
+/** A blocker code said the way an operator can act on it. */
+function blockerLabel(code: string): string {
+  if (code.includes("meta_match")) return "No Meta ads matched the name";
+  if (code.includes("meta_receipt")) return "Meta read returned no metrics";
+  if (code.includes("building_blocks")) return "Concept page missing required properties";
+  if (code.includes("analysis_error")) return "Analysis raised an error";
+  return code;
+}
+
+/**
+ * The concepts of one pass that did not produce a verdict, and why.
+ *
+ * Without this the only signal was a count, so "372 failed" could not be
+ * acted on — you could not see which concepts, or whether it mattered.
+ */
+function ConceptIssues({ runId }: { runId: string }) {
+  const [tab, setTab] = useState<"failed" | "skipped">("failed");
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["run-concepts", runId, tab],
+    queryFn: () => getRunConcepts(runId, { status: tab, limit: 100 }),
+    staleTime: 10_000,
+  });
+
+  const counts = data?.counts;
+  const items = data?.items ?? [];
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-faint">
+          Concepts without a verdict
+        </p>
+        <div className="flex rounded-lg border border-border bg-surface p-0.5">
+          {(["failed", "skipped"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTab(value)}
+              className={cn(
+                "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                tab === value ? "bg-accent text-black" : "text-muted hover:text-foreground",
+              )}
+            >
+              {value === "failed" ? "Failed" : "No ads"}
+              {counts ? ` (${(counts[value] ?? 0).toLocaleString()})` : ""}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grouped by cause first: one glance says whether this is a single
+          fixable thing or many different ones. */}
+      {data?.blockers && Object.keys(data.blockers).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {Object.entries(data.blockers)
+            .sort((a, b) => b[1] - a[1])
+            .map(([code, n]) => (
+              <span key={code} className="text-[11px] text-muted">
+                <span className="font-medium tabular-nums text-foreground">
+                  {n.toLocaleString()}
+                </span>{" "}
+                {blockerLabel(code)}
+              </span>
+            ))}
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="mt-2 text-xs text-muted">Loading…</p>
+      ) : error ? (
+        <p className="mt-2 text-xs text-danger">{(error as Error).message}</p>
+      ) : items.length === 0 ? (
+        <p className="mt-2 text-xs text-muted">
+          {tab === "failed"
+            ? "Nothing failed in this pass."
+            : "Every concept in scope had Meta ads to analyse."}
+        </p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-1">
+          {items.map((c) => (
+            <li key={c.creative_id} className="flex items-baseline gap-2 text-xs">
+              <span className="min-w-0 shrink-0 font-medium text-foreground">{c.name}</span>
+              <span
+                title={c.error || undefined}
+                className={cn("truncate", tab === "failed" ? "text-danger" : "text-muted")}
+              >
+                {c.blocked_code ? blockerLabel(c.blocked_code) : c.error || "no reason recorded"}
+              </span>
+            </li>
+          ))}
+          {data && data.total > items.length && (
+            <li className="text-[10px] text-faint">
+              showing {items.length.toLocaleString()} of {data.total.toLocaleString()}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function RunRow({ run }: { run: JobRun }) {
   const [open, setOpen] = useState(false);
+  const issues =
+    (run.concept_counts?.failed ?? 0) + (run.concept_counts?.skipped ?? 0);
   const hasDetail =
     Boolean(run.error) ||
+    issues > 0 ||
     Object.keys(run.payload ?? {}).length > 0 ||
     Object.keys(run.result ?? {}).length > 0;
 
@@ -221,6 +334,7 @@ function RunRow({ run }: { run: JobRun }) {
               )}
               <Facts title="Asked to do" data={run.payload} />
               <Facts title="Reported back" data={run.result} />
+              {issues > 0 && <ConceptIssues runId={run.id} />}
             </div>
           </td>
         </tr>
