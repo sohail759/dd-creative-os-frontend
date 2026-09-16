@@ -61,6 +61,16 @@ export function useConceptRunStatus(
     refetchOnMount: "always",
     refetchInterval: (query) => {
       const run = query.state.data?.run;
+      const concept = query.state.data?.concept;
+      // Poll while THIS concept is still being worked on. A brand-wide pass
+      // keeps `run.status === "running"` for hours after it has finished with
+      // this concept, so polling on the run alone kept every finished concept
+      // refetching — and reporting itself as in progress.
+      if (concept) {
+        return concept.status === "pending" || concept.status === "running"
+          ? 5_000
+          : false;
+      }
       if (run?.status === "running") return 5_000;
       if (!dispatchedAt) return false;
       // Still waiting for the worker to pick the task up. Give it two minutes

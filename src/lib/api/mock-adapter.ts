@@ -812,7 +812,7 @@ export const mockApi: ApiClient = {
   },
 
   async getConceptRunStatus() {
-    return { run: null };
+    return { run: null, concept: null };
   },
 
   async runIntelligenceConcept(conceptName) {

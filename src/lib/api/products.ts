@@ -1,6 +1,7 @@
 import type { ApiClient } from "./client";
 import type {
   ConceptRunRecord,
+  ConceptRunState,
   AgentConfig,
   AgentConfigUpdate,
   AgentListResponse,
@@ -614,7 +615,7 @@ export const httpApi: ApiClient = {
 
   async getConceptRunStatus(conceptName, brand?) {
     const params = new URLSearchParams({ brand: brand || "numy" });
-    return request<{ run: ConceptRunRecord | null }>(
+    return request<{ run: ConceptRunRecord | null; concept?: ConceptRunState | null }>(
       `/v1/intelligence/concepts/${encodeURIComponent(conceptName)}/run-status?${params.toString()}`
     );
   },

@@ -1,5 +1,6 @@
 import type {
   ConceptRunRecord,
+  ConceptRunState,
   AnalyticsResponse,
   AgentConfig,
   AgentConfigUpdate,
@@ -94,7 +95,7 @@ export interface ApiClient {
   getConceptRunStatus(
     conceptName: string,
     brand?: string
-  ): Promise<{ run: ConceptRunRecord | null }>;
+  ): Promise<{ run: ConceptRunRecord | null; concept?: ConceptRunState | null }>;
   runIntelligenceConcept(
     conceptName: string,
     brand?: string,

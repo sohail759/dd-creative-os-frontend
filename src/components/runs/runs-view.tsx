@@ -93,6 +93,61 @@ function Steps({ steps }: { steps: RunStep[] }) {
   );
 }
 
+/**
+ * How far through the brand's concepts a pass is.
+ *
+ * A weekly pass covers every concept in the brand, so the three stages above
+ * spend nearly all their time on one of them. This is the number that moves.
+ */
+/** A span of milliseconds, said the way someone watching a run wants it. */
+function millis(ms?: number | null): string {
+  if (typeof ms !== "number" || ms <= 0) return "—";
+  const seconds = ms / 1000;
+  if (seconds < 90) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 90) return `${minutes.toFixed(0)}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+function ConceptCounts({
+  counts,
+  timing,
+}: {
+  counts?: JobRun["concept_counts"];
+  timing?: JobRun["concept_timing"];
+}) {
+  if (!counts) return null;
+  const done = counts.done ?? 0;
+  const failed = counts.failed ?? 0;
+  const running = counts.running ?? 0;
+  const pending = counts.pending ?? 0;
+  const total = done + failed + running + pending;
+  if (!total) return null;
+  return (
+    <div className="mt-1.5 flex items-center gap-3 text-[10px] tabular-nums text-faint">
+      <span className="text-foreground">{done.toLocaleString()} done</span>
+      {running > 0 && <span className="text-warning">{running.toLocaleString()} running</span>}
+      {pending > 0 && <span>{pending.toLocaleString()} to go</span>}
+      {failed > 0 && <span className="text-danger">{failed.toLocaleString()} failed</span>}
+      <span>of {total.toLocaleString()}</span>
+      {/* Pace, and what it implies for the time left. A six-hour pass with no
+          estimate cannot be told from one that has hung. */}
+      {timing?.average_ms ? (
+        <span title={
+          timing.slowest
+            ? `Slowest: ${timing.slowest.name} (${millis(timing.slowest.duration_ms)})`
+            : undefined
+        }>
+          · {millis(timing.average_ms)}/concept
+          {timing.eta_ms ? ` · ~${millis(timing.eta_ms)} left` : ""}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** Key/value pairs from a run's payload or result, rendered without guessing. */
 function Facts({ title, data }: { title: string; data: Record<string, unknown> }) {
   const entries = Object.entries(data ?? {}).filter(
@@ -151,6 +206,7 @@ function RunRow({ run }: { run: JobRun }) {
         <td className="py-2.5 pr-3 tabular-nums text-muted">{duration(run)}</td>
         <td className="py-2.5 pr-4">
           <Steps steps={run.progress ?? []} />
+          <ConceptCounts counts={run.concept_counts} timing={run.concept_timing} />
         </td>
       </tr>
       {open && hasDetail && (

@@ -22,12 +22,30 @@ export interface RunStep {
   total?: number | null;
 }
 
+/** Done / in progress / still to come for a pass's concepts. */
+export interface RunConceptCounts {
+  pending?: number;
+  running?: number;
+  done?: number;
+  failed?: number;
+}
+
+export interface RunConceptTiming {
+  counted: number;
+  average_ms?: number | null;
+  total_ms?: number;
+  slowest?: { name: string; duration_ms: number } | null;
+  eta_ms?: number | null;
+}
+
 export interface JobRun {
   id: string;
   brand: string;
   kind: string;
   status: "running" | "ok" | "failed";
   progress: RunStep[];
+  concept_counts?: RunConceptCounts;
+  concept_timing?: RunConceptTiming;
   payload: Record<string, unknown>;
   result: Record<string, unknown>;
   ad_account_id?: string | null;

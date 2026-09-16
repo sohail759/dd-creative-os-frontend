@@ -539,6 +539,42 @@ export interface ConceptListResponse {
 }
 
 /** One Analyst pass, as recorded durably rather than held in a browser tab. */
+/** Where one concept got to inside a pass.
+ *
+ * Distinct from the run's own status: a brand-wide pass stays `running` for
+ * hours after it has finished with any particular concept, so reporting only
+ * the run told everyone visiting a finished concept it was still going. */
+export interface ConceptRunState {
+  creative_id: string;
+  name: string;
+  status: "pending" | "running" | "done" | "failed";
+  classification?: string;
+  decided?: boolean | null;
+  blocked_code?: string;
+  error?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  /** How long this concept took. The run's own duration is the sum of
+   * hundreds of these and says nothing about which ones are slow. */
+  duration_ms?: number | null;
+}
+
+export interface RunConceptTiming {
+  counted: number;
+  average_ms?: number | null;
+  total_ms?: number;
+  slowest?: { name: string; duration_ms: number } | null;
+  /** Average times what is left — what a long pass needs to be readable. */
+  eta_ms?: number | null;
+}
+
+export interface RunConceptCounts {
+  pending?: number;
+  running?: number;
+  done?: number;
+  failed?: number;
+}
+
 export interface ConceptRunRecord {
   id: string;
   brand: string;
@@ -556,6 +592,8 @@ export interface ConceptRunRecord {
   started_at?: string | null;
   finished_at?: string | null;
   duration_ms?: number | null;
+  concept_counts?: RunConceptCounts;
+  concept_timing?: RunConceptTiming;
 }
 
 export interface ConceptDetail {

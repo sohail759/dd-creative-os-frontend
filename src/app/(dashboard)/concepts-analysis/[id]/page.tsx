@@ -24,11 +24,13 @@ import {
   useRunIntelligenceConcept,
 } from "@/hooks/use-intelligence";
 import { ConceptPerformancePanel } from "@/components/intelligence/concept-performance";
+import { cn } from "@/lib/utils";
 import type {
   ConceptDetail,
   AnalystPayload,
   IntelligenceAd,
   ConceptRunRecord,
+  ConceptRunState,
 } from "@/lib/api/types";
 
 
@@ -183,13 +185,78 @@ function isPlaceholderAd(ad: IntelligenceAd): boolean {
  * here after navigating away and back. A pass takes minutes; the answer has
  * to outlive the tab that started it.
  */
+/** A span of milliseconds, said the way someone reading a run wants it. */
+function millis(ms?: number | null): string {
+  if (typeof ms !== "number" || ms <= 0) return "";
+  const seconds = ms / 1000;
+  if (seconds < 90) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 90) return `${minutes.toFixed(0)}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 function RunStatusPanel({
   run,
+  concept,
   waiting,
 }: {
   run?: ConceptRunRecord | null;
+  concept?: ConceptRunState | null;
   waiting?: boolean;
 }) {
+  // What this concept is doing comes first; the pass around it is context.
+  // A weekly pass covers the whole brand, so its own status says nothing
+  // about whether THIS concept has been analysed yet.
+  if (concept && concept.status !== "done") {
+    const queued = concept.status === "pending";
+    const failed = concept.status === "failed";
+    const counts = run?.concept_counts;
+    const done = counts?.done ?? 0;
+    const total =
+      (counts?.done ?? 0) + (counts?.running ?? 0) +
+      (counts?.pending ?? 0) + (counts?.failed ?? 0);
+    return (
+      <div
+        className={cn(
+          "mt-4 rounded-2xl border p-4",
+          failed
+            ? "border-danger/30 bg-danger/10"
+            : "border-amber-500/30 bg-amber-500/10",
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          {failed ? (
+            <AlertTriangle className="h-4 w-4 text-danger" />
+          ) : (
+            <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+          )}
+          <p className="text-sm font-semibold text-foreground">
+            {failed
+              ? "Analysis failed for this concept"
+              : queued
+                ? "Queued in the brand-wide pass"
+                : "Analysing this concept"}
+          </p>
+          {total > 0 && (
+            <span className="text-xs tabular-nums text-muted">
+              {done.toLocaleString()} of {total.toLocaleString()} concepts done
+            </span>
+          )}
+          {/* What this one took, once it has a duration of its own. */}
+          {millis(concept.duration_ms) && (
+            <span className="text-xs tabular-nums text-muted">
+              took {millis(concept.duration_ms)}
+            </span>
+          )}
+        </div>
+        {concept.error && (
+          <p className="mt-2 text-xs text-danger">{concept.error}</p>
+        )}
+      </div>
+    );
+  }
   // Dispatched, not yet picked up. Showing the previous run here would read
   // as "already finished" for something that has not started.
   if (waiting) {
@@ -203,6 +270,32 @@ function RunStatusPanel({
       </div>
     );
   }
+  // This concept is finished, even if the pass around it is not. Showing the
+  // run's "Analysis running" here is what made a completed concept look
+  // unfinished.
+  if (concept?.status === "done") {
+    const took = millis(concept.duration_ms);
+    return (
+      <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          <p className="text-sm font-semibold text-foreground">Analysis complete</p>
+          {concept.classification && (
+            <span className="text-xs text-muted">{concept.classification}</span>
+          )}
+          {took && (
+            <span className="text-xs tabular-nums text-muted">took {took}</span>
+          )}
+          {run?.status === "running" && (
+            <span className="text-xs text-muted">
+              · the brand-wide pass is still going
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!run) return null;
 
   const running = run.status === "running";
@@ -292,6 +385,13 @@ export default function ConceptDetailPage() {
   const [dispatchedAt, setDispatchedAt] = useState<number | undefined>();
   const runStatus = useConceptRunStatus(conceptName, brand, dispatchedAt);
   const [showRunDialog, setShowRunDialog] = useState(false);
+
+  // This concept's own place in the pass. A brand-wide run stays "running"
+  // long after it has finished with this concept, and reporting the run's
+  // status here told people their analysis was still going when it was done.
+  const conceptState = runStatus.data?.concept ?? null;
+  const conceptBusy =
+    conceptState?.status === "pending" || conceptState?.status === "running";
 
   // Dispatched, but the worker has not opened its run record yet. Without
   // this the page shows the PREVIOUS run's outcome and reads as finished.
@@ -449,26 +549,24 @@ export default function ConceptDetailPage() {
           */}
           <button
             onClick={() => setShowRunDialog(true)}
-            disabled={
-              runMutation.isPending ||
-              waitingForWorker ||
-              runStatus.data?.run?.status === "running"
-            }
+            disabled={runMutation.isPending || waitingForWorker || conceptBusy}
             className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             <Sparkles
               className={`h-3.5 w-3.5 ${runMutation.isPending ? "animate-pulse" : ""}`}
             />
-            {runStatus.data?.run?.status === "running" ||
-            runMutation.isPending ||
-            waitingForWorker
+            {conceptBusy || runMutation.isPending || waitingForWorker
               ? "Running..."
               : "Run Analysis"}
           </button>
         </div>
       </header>
 
-      <RunStatusPanel run={runStatus.data?.run} waiting={waitingForWorker} />
+      <RunStatusPanel
+        run={runStatus.data?.run}
+        concept={conceptState}
+        waiting={waitingForWorker}
+      />
 
       <ConceptPerformancePanel conceptName={conceptName} brand={brand} />
 
