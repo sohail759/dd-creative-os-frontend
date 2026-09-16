@@ -553,7 +553,9 @@ export interface ConceptListResponse {
 export interface ConceptRunState {
   creative_id: string;
   name: string;
-  status: "pending" | "running" | "done" | "failed";
+  /** `skipped` is finished, not in flight: nothing to analyse, and nothing
+   * went wrong — almost always a concept with no Meta ads. */
+  status: "pending" | "running" | "done" | "skipped" | "failed";
   classification?: string;
   decided?: boolean | null;
   blocked_code?: string;

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
+  MinusCircle,
   Brain,
   ChevronLeft,
   DollarSign,
@@ -209,6 +210,25 @@ function RunStatusPanel({
   // What this concept is doing comes first; the pass around it is context.
   // A weekly pass covers the whole brand, so its own status says nothing
   // about whether THIS concept has been analysed yet.
+  // `skipped` is finished, not in flight.
+  //
+  // Only `done` was treated as finished, so a concept the pass had SKIPPED —
+  // nothing to analyse, no ads — sat under "Analysing this concept" for ever,
+  // with its blocker printed underneath. It reads as a run that never ends.
+  if (concept && concept.status === "skipped") {
+    return (
+      <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <MinusCircle className="h-4 w-4 text-muted" />
+          <p className="text-sm font-semibold text-foreground">Nothing to analyse</p>
+          <span className="text-xs text-muted">
+            {concept.error || "this concept has no Meta ads"}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   if (concept && concept.status !== "done") {
     const queued = concept.status === "pending";
     const failed = concept.status === "failed";
