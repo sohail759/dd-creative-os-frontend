@@ -38,7 +38,7 @@ function money(value: number): string {
 }
 
 /** What the execution record means, in words rather than a state name. */
-function executionNote(p: Proposal): { tone: "good" | "bad" | "warn"; text: string } | null {
+function executionNote(p: Proposal): { tone: "good" | "bad" | "warn" | "info"; text: string } | null {
   switch (p.execution_status) {
     case "activated":
       return { tone: "good", text: `Live as ${p.created_ad_id}` };
@@ -54,13 +54,22 @@ function executionNote(p: Proposal): { tone: "good" | "bad" | "warn"; text: stri
         tone: "bad",
         text: `A creative (${p.created_creative_id}) was made on Meta but the ad was refused`,
       };
+    case "waiting_for_limit":
+      return {
+        tone: "warn",
+        // The backend writes the reason as a sentence, with Meta's own
+        // figure in it. Falling back only when it is somehow missing.
+        text: p.deferred_reason
+          || "Waiting for Meta's rate limit to clear — nothing has been "
+             + "created yet. This retries on its own every 15 minutes.",
+      };
     case "blocked":
       return { tone: "bad", text: p.execution_error || "Stopped before anything was created" };
     default:
       // Approved but not yet built: the build runs on its own after approval,
       // so this is a normal waiting state rather than something to act on.
       if (p.status === "approved" || p.status === "revised") {
-        return { tone: "warn", text: "Queued — the ad is being built on Meta" };
+        return { tone: "info", text: "Approved — queued to be built on Meta" };
       }
       return null;
   }
@@ -311,9 +320,14 @@ function ProposalCard({
   const approved = proposal.status === "approved" || proposal.status === "revised";
   const built = Boolean(proposal.created_ad_id);
   // The build happens automatically after approval. This button is for the
-  // case where it did not — a rate limit, a refused creative — so it reads as
-  // a retry rather than as the normal way to launch an ad.
-  const needsRetry = approved && !built && Boolean(proposal.execution_error);
+  // case where it did not — a refused creative, or a rate limit that has not
+  // cleared — so it reads as a retry rather than as the normal way to launch
+  // an ad. Offered for a waiting proposal too: the automatic sweep runs every
+  // fifteen minutes, and someone watching the gauge clear should not have to
+  // wait for the next tick.
+  const waiting = proposal.execution_status === "waiting_for_limit";
+  const needsRetry = approved && !built
+    && (Boolean(proposal.execution_error) || waiting);
   const note = executionNote(proposal);
   const revisedPage = proposal.revision?.target_page_name;
 
@@ -405,6 +419,7 @@ function ProposalCard({
           note.tone === "good" && "bg-success/10 text-success",
           note.tone === "warn" && "bg-warning/10 text-warning",
           note.tone === "bad" && "bg-danger/10 text-danger",
+          note.tone === "info" && "bg-white/5 text-muted",
         )}>
           {note.tone === "bad" && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
           <span>{note.text}</span>
@@ -468,7 +483,9 @@ function ProposalCard({
               type="button"
               disabled={busy}
               onClick={onExecute}
-              title="Tries again. The ad is created paused, checked, then activated."
+              title={waiting
+                ? "Tries now instead of waiting for the next automatic retry."
+                : "Tries again. The ad is created paused, checked, then activated."}
               className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               <Rocket className="h-3.5 w-3.5" />

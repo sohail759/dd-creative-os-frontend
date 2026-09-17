@@ -166,7 +166,18 @@ export function useExecuteProposal() {
           : `Created as ${result.created_ad_id}. It stays paused until activated.`);
       refresh();
     },
-    onError: (error: Error) => toast("error", "Could not build the ad", error.message),
+    // A rate limit is not a failure to fix — it is a wait. Saying "could not
+    // build" for it would send someone looking for a problem that is not
+    // theirs.
+    onError: (error: Error) => {
+      const limited = /rate limit|refusing new ads|has paused this ad account/i
+        .test(error.message);
+      toast(
+        limited ? "info" : "error",
+        limited ? "Still waiting on Meta" : "Could not build the ad",
+        error.message,
+      );
+    },
   });
 }
 

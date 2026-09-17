@@ -17,6 +17,7 @@ export type ProposalStatus =
  *  object exists on Meta that someone has to look at. */
 export type ExecutionStatus =
   | "not_started"
+  | "waiting_for_limit"
   | "creative_orphaned"
   | "created_unverified"
   | "verified_paused"
@@ -69,6 +70,8 @@ export interface Proposal {
   created_ad_id?: string;
   created_creative_id?: string;
   execution_error?: string;
+  deferred_reason?: string;
+  deferred_at?: string | null;
   activated?: boolean;
 }
 
