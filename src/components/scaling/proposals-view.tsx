@@ -9,11 +9,12 @@ import {
   useDecideProposal, useDecideSelection, useExecuteProposal,
   useProposalCounts, useProposals, useRunPlan,
 } from "@/hooks/use-scaling";
-import type { Proposal, ProposalStatus } from "@/lib/api/scaling";
+import type { Period, Proposal, ProposalStatus } from "@/lib/api/scaling";
 import {
   BRANDS, Badge, BrandTabs, DEFAULT_PAGE_SIZE, Pagination, TimeAgo,
-  localTime, parseInstant,
 } from "@/components/pages/shared";
+import { ExpiresIn } from "./expires-in";
+import { ReviseDialog } from "./revise-dialog";
 import { RunBanner } from "./run-banner";
 import { cn } from "@/lib/utils";
 
@@ -25,13 +26,13 @@ const TABS: Array<{ key: ProposalStatus; label: string }> = [
   { key: "expired", label: "Expired" },
 ];
 
-/** Within six hours of expiring — worth a nudge while it can still be acted on. */
-function isExpiringSoon(at?: string | null): boolean {
-  const date = parseInstant(at);
-  if (!date) return false;
-  const hoursLeft = (date.getTime() - Date.now()) / 3_600_000;
-  return hoursLeft > 0 && hoursLeft <= 6;
-}
+const PERIODS: Array<{ key: Period; label: string }> = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This week" },
+  { key: "all", label: "All" },
+  { key: "custom", label: "Range" },
+];
 
 function money(value: number): string {
   return `€${(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -80,20 +81,44 @@ export function ProposalsView() {
   const [tab, setTab] = useState<ProposalStatus>("pending");
   const [minPurchases, setMinPurchases] = useState("");
   const [maxCpa, setMaxCpa] = useState("");
+  // Today by default: the list is a work queue, and last week's decisions
+  // are history rather than something waiting on anyone.
+  const [period, setPeriod] = useState<Period>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [revising, setRevising] = useState<Proposal | null>(null);
 
+  // Sent so the server's "today" is the reader's day. A browser in Amsterdam
+  // and a worker in UTC otherwise disagree for two hours every evening.
+  const tzOffsetMinutes = -new Date().getTimezoneOffset();
+  const window = {
+    period,
+    tz_offset_minutes: tzOffsetMinutes,
+    ...(period === "custom"
+      ? {
+          created_from: customFrom ? new Date(customFrom).toISOString() : undefined,
+          created_to: customTo
+            // An end date is inclusive to a person: "to the 5th" means
+            // through the end of the 5th, not its first instant.
+            ? new Date(new Date(customTo).getTime() + 86_400_000).toISOString()
+            : undefined,
+        }
+      : {}),
+  };
   const filters = {
     brand,
     status: [tab],
     min_purchases: minPurchases ? Number(minPurchases) : undefined,
     max_cpa: maxCpa ? Number(maxCpa) : undefined,
+    ...window,
     limit: pageSize,
     offset: page * pageSize,
   };
   const { data, isLoading, error } = useProposals(filters);
-  const counts = useProposalCounts(brand);
+  const counts = useProposalCounts({ brand, ...window });
   const decide = useDecideProposal();
   const decideMany = useDecideSelection();
   const execute = useExecuteProposal();
@@ -184,6 +209,42 @@ export function ProposalsView() {
             <span className="ml-1.5 text-faint">{counts.data?.[key] ?? 0}</span>
           </button>
         ))}
+      </div>
+
+      {/* When. Above the other filters because it changes the tab counts
+          too, and a count that disagrees with the list is worse than none. */}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-surface px-4 py-2.5 text-xs">
+        <span className="mr-1 text-muted">Proposed</span>
+        {PERIODS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { setPeriod(key); setPage(0); setSelected(new Set()); }}
+            className={cn(
+              "rounded-lg px-2.5 py-1 font-semibold transition-colors",
+              period === key
+                ? "bg-accent text-black"
+                : "text-muted hover:bg-white/5 hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+        {period === "custom" && (
+          <span className="ml-2 flex items-center gap-1.5">
+            <input
+              type="date" value={customFrom}
+              onChange={(e) => { setCustomFrom(e.target.value); setPage(0); }}
+              className="rounded border border-border bg-transparent px-2 py-1 text-foreground"
+            />
+            <span className="text-faint">to</span>
+            <input
+              type="date" value={customTo}
+              onChange={(e) => { setCustomTo(e.target.value); setPage(0); }}
+              className="rounded border border-border bg-transparent px-2 py-1 text-foreground"
+            />
+          </span>
+        )}
       </div>
 
       {/* Filters. */}
@@ -281,10 +342,24 @@ export function ProposalsView() {
               busy={busy}
               onDecide={(decision) =>
                 decide.mutate({ id: proposal._id, decision })}
+              onRevise={() => setRevising(proposal)}
               onExecute={() => execute.mutate(proposal._id)}
             />
           ))}
         </ul>
+      )}
+
+      {revising && (
+        <ReviseDialog
+          proposal={revising}
+          busy={decide.isPending}
+          onCancel={() => setRevising(null)}
+          onConfirm={(revision, note) =>
+            decide.mutate(
+              { id: revising._id, decision: "revised", revision, note },
+              { onSuccess: () => setRevising(null) },
+            )}
+        />
       )}
 
       <Pagination
@@ -307,13 +382,14 @@ function EmptyState({ tab, brand }: { tab: ProposalStatus; brand: string }) {
 }
 
 function ProposalCard({
-  proposal, selected, onToggle, busy, onDecide, onExecute,
+  proposal, selected, onToggle, busy, onDecide, onRevise, onExecute,
 }: {
   proposal: Proposal;
   selected: boolean;
   onToggle: () => void;
   busy: boolean;
   onDecide: (decision: "approved" | "rejected") => void;
+  onRevise: () => void;
   onExecute: () => void;
 }) {
   const pending = proposal.status === "pending";
@@ -449,12 +525,7 @@ function ProposalCard({
           </span>
         )}
         {proposal.status === "pending" && (
-          <span className="text-faint" title={localTime(proposal.expires_at)}>
-            {isExpiringSoon(proposal.expires_at) && (
-              <span className="mr-1 font-semibold text-warning">Expires soon —</span>
-            )}
-            expires <TimeAgo at={proposal.expires_at} fallback="—" />
-          </span>
+          <ExpiresIn at={proposal.expires_at} />
         )}
 
         <div className="ml-auto flex items-center gap-2">
@@ -467,6 +538,17 @@ function ProposalCard({
                 className="rounded-lg bg-success/15 px-3 py-1.5 font-semibold text-success ring-1 ring-inset ring-success/25 transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 Approve
+              </button>
+              {/* Revising is not rejecting: the creative is still worth
+                  scaling, the page chosen for it is not the right one. */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onRevise}
+                title="Approve it, but for a different page"
+                className="rounded-lg bg-white/5 px-3 py-1.5 font-semibold text-muted ring-1 ring-inset ring-white/10 transition-colors hover:text-foreground disabled:opacity-40"
+              >
+                Revise
               </button>
               <button
                 type="button"

@@ -219,23 +219,48 @@ export function runPlan(brand: string, dryRun = true): Promise<PlanResult> {
   return post(`/v1/scaling/plan${query({ brand, dry_run: dryRun })}`);
 }
 
-export function listProposals(params: {
+export type Period = "today" | "yesterday" | "week" | "all" | "custom";
+
+export interface ProposalFilters {
   brand?: string;
   run_id?: string;
   status?: string[];
   min_purchases?: number;
   max_cpa?: number;
+  /** Named window. Ignored when created_from/created_to are given. */
+  period?: Period;
+  created_from?: string;
+  created_to?: string;
+  /** So "today" means the reader's day, not UTC's. */
+  tz_offset_minutes?: number;
   limit?: number;
   offset?: number;
-}): Promise<ProposalPage> {
-  return get(`/v1/scaling/proposals${query(params)}`);
+}
+
+export function listProposals(params: ProposalFilters): Promise<ProposalPage> {
+  return get(`/v1/scaling/proposals${query({ ...params, period: undefined,
+    ...(params.period && params.period !== "custom" ? { period: params.period } : {}) })}`);
+}
+
+export interface LandingPageOption {
+  page_name: string;
+  url: string;
+  angle: string;
+  languages: string[];
+}
+
+export function listLandingPages(brand: string): Promise<{ pages: LandingPageOption[] }> {
+  return get(`/v1/scaling/landing-pages${query({ brand })}`);
 }
 
 export function proposalCounts(
-  brand?: string,
-  runId?: string,
+  params: ProposalFilters = {},
 ): Promise<Record<ProposalStatus, number>> {
-  return get(`/v1/scaling/proposals/counts${query({ brand, run_id: runId })}`);
+  const { brand, run_id, period, created_from, created_to, tz_offset_minutes } = params;
+  return get(`/v1/scaling/proposals/counts${query({
+    brand, run_id, created_from, created_to, tz_offset_minutes,
+    ...(period && period !== "custom" ? { period } : {}),
+  })}`);
 }
 
 export function decideProposal(

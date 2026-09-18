@@ -15,6 +15,8 @@ import {
   type ScalingPolicy,
   type ScalingRun,
   listRuns,
+  listLandingPages,
+  type ProposalFilters,
 } from "@/lib/api/scaling";
 import { useToast } from "@/components/ui/toast";
 
@@ -48,14 +50,7 @@ export function useUpdatePolicy(brand: string) {
   });
 }
 
-export function useProposals(params: {
-  brand?: string;
-  status?: string[];
-  min_purchases?: number;
-  max_cpa?: number;
-  limit?: number;
-  offset?: number;
-}) {
+export function useProposals(params: ProposalFilters) {
   return useQuery<ProposalPage>({
     queryKey: ["scaling-proposals", params],
     queryFn: () => listProposals(params),
@@ -65,12 +60,23 @@ export function useProposals(params: {
   });
 }
 
-export function useProposalCounts(brand?: string) {
+export function useProposalCounts(params: ProposalFilters) {
   return useQuery({
-    queryKey: ["scaling-proposal-counts", brand],
-    queryFn: () => proposalCounts(brand),
+    // Keyed on the whole filter: a tab saying 12 while the list beneath it
+    // shows 3 is worse than no count at all.
+    queryKey: ["scaling-proposal-counts", params],
+    queryFn: () => proposalCounts(params),
     refetchOnMount: "always",
     staleTime: 0,
+  });
+}
+
+export function useLandingPageOptions(brand: string) {
+  return useQuery({
+    queryKey: ["scaling-landing-pages", brand],
+    queryFn: () => listLandingPages(brand),
+    enabled: Boolean(brand),
+    staleTime: 5 * 60_000,
   });
 }
 
