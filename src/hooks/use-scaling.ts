@@ -50,6 +50,9 @@ export function useUpdatePolicy(brand: string) {
   });
 }
 
+/** Execution states that are still going somewhere. */
+const IN_FLIGHT = new Set(["not_started", "waiting_for_limit"]);
+
 export function useProposals(params: ProposalFilters) {
   return useQuery<ProposalPage>({
     queryKey: ["scaling-proposals", params],
@@ -57,6 +60,20 @@ export function useProposals(params: ProposalFilters) {
     refetchOnMount: "always",
     staleTime: 0,
     placeholderData: (previous) => previous,
+    // Approving marks the proposal immediately, but the ad is built a few
+    // seconds later in a worker. Without this the card sits on "queued"
+    // until someone reloads the page, which reads as nothing having
+    // happened. Polls only while something is actually in flight.
+    refetchInterval: (query) => {
+      const rows = query.state.data?.proposals ?? [];
+      const busy = rows.some(
+        (row) =>
+          (row.status === "approved" || row.status === "revised")
+          && !row.created_ad_id
+          && IN_FLIGHT.has(row.execution_status ?? "not_started"),
+      );
+      return busy ? 5_000 : false;
+    },
   });
 }
 
@@ -104,6 +121,9 @@ export function useDecideProposal() {
         decision === "rejected"
           ? "Saved."
           : "Building it on Meta now — created paused, checked, then activated.");
+      // The build lands a few seconds after the decision, so the counts and
+      // the card both need a second look.
+      window.setTimeout(refresh, 6_000);
       refresh();
     },
     // A 409 means someone already decided it, which is information, not noise.
@@ -134,6 +154,7 @@ export function useDecideSelection() {
           result.reason);
       }
       refresh();
+      window.setTimeout(refresh, 6_000);
     },
     onError: (error: Error) => toast("error", "Could not apply", error.message),
   });

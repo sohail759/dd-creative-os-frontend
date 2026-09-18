@@ -26,6 +26,22 @@ const TABS: Array<{ key: ProposalStatus; label: string }> = [
   { key: "expired", label: "Expired" },
 ];
 
+/**
+ * A link that actually opens the ad.
+ *
+ * Ads Manager resolves an ad id only within an ad account: without `act=` it
+ * opens whichever account the browser last used, and the selection is
+ * silently dropped. `adsmanager.facebook.com` rather than `www.` because the
+ * www host redirects and loses the query on the way.
+ */
+function adsManagerUrl(accountId: string | undefined, adId: string): string {
+  const act = (accountId || "").replace(/^act_/, "");
+  const base = "https://adsmanager.facebook.com/adsmanager/manage/ads";
+  const params = new URLSearchParams({ selected_ad_ids: adId });
+  if (act) params.set("act", act);
+  return `${base}?${params.toString()}`;
+}
+
 const PERIODS: Array<{ key: Period; label: string }> = [
   { key: "today", label: "Today" },
   { key: "yesterday", label: "Yesterday" },
@@ -460,7 +476,7 @@ function ProposalCard({
             )}
             {proposal.source_ad_id && (
               <a
-                href={`https://www.facebook.com/adsmanager/manage/ads?selected_ad_ids=${proposal.source_ad_id}`}
+                href={adsManagerUrl(proposal.ad_account_id, proposal.source_ad_id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-muted underline-offset-2 hover:underline"

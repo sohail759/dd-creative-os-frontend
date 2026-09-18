@@ -40,6 +40,8 @@ export interface Proposal {
   source_adset_id?: string;
   source_adset_name?: string;
   source_page_name?: string;
+  /** Needed to open anything in Ads Manager. */
+  ad_account_id?: string;
   concept?: string;
 
   /** The LANDING page: where the ad points. */
