@@ -170,7 +170,7 @@ export function useExecuteProposal() {
     // build" for it would send someone looking for a problem that is not
     // theirs.
     onError: (error: Error) => {
-      const limited = /rate limit|refusing new ads|has paused this ad account/i
+      const limited = /rate limit|refusing new ads|has paused this ad account|limiting this ad account/i
         .test(error.message);
       toast(
         limited ? "info" : "error",
