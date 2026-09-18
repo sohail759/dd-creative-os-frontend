@@ -19,10 +19,13 @@ import {
   HeartPulse,
   Target,
   DatabaseZap,
+  TrendingUp,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { signOut, type AuthUser } from "@/lib/api/auth";
+import { MetaLimitBar } from "./meta-limit-bar";
 
 const BRANDS = [
   { slug: "numy", label: "NUMY" },
@@ -73,6 +76,19 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Meta",
     entries: [
       { label: "Campaigns & Ad Sets", href: "/meta-structure", icon: Target },
+    ],
+  },
+  {
+    // Its own section, not under Meta: everything under Meta describes what
+    // already exists, while this proposes what should exist next and is the
+    // only screen in the app that can spend money. Rules sit beside the
+    // proposals rather than in Settings because "why was nothing proposed"
+    // is answered by the thresholds, not by a preference page.
+    label: "Ad Scaling",
+    adminOnly: true,
+    entries: [
+      { label: "Proposals", href: "/scaling", icon: TrendingUp },
+      { label: "Scaling Rules", href: "/scaling/rules", icon: SlidersHorizontal },
     ],
   },
   {
@@ -259,6 +275,7 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
         <div className="flex-1 overflow-y-auto custom-scrollbar px-3">
           <NavList isAdmin={user?.role === "admin"} />
         </div>
+        <MetaLimitBar />
         <UserFooter user={user ?? null} />
       </aside>
 
@@ -285,6 +302,7 @@ export function Sidebar({ user }: { user?: AuthUser | null }) {
                 isAdmin={user?.role === "admin"}
               />
             </div>
+            <MetaLimitBar />
             <UserFooter user={user ?? null} />
           </aside>
         </div>

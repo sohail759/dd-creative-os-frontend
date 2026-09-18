@@ -1,5 +1,7 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -155,18 +157,99 @@ export function CapacityBar({
   );
 }
 
-/** An instant as "3 minutes ago", with the exact time on hover. */
+/**
+ * Parse an instant the API sent, as UTC.
+ *
+ * The database stores UTC but returns it without a timezone marker, so the
+ * API emits "2026-09-20T13:05:03" — which JavaScript reads as LOCAL time.
+ * Every timestamp in the app was therefore shifted by the reader's offset:
+ * an hour out in Amsterdam, five in New York.
+ *
+ * A string that already carries an offset or a "Z" is left alone.
+ */
+export function parseInstant(at?: string | null): Date | null {
+  if (!at) return null;
+  const text = String(at);
+  const hasZone = /(?:[Zz]|[+-]\d{2}:?\d{2})$/.test(text);
+  const date = new Date(hasZone ? text : `${text}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** The exact instant in the reader's own timezone, for a tooltip. */
+export function localTime(at?: string | null): string {
+  const date = parseInstant(at);
+  return date ? date.toLocaleString(undefined, { timeZoneName: "short" }) : "";
+}
+
+/**
+ * An instant as "3 minutes ago" or "in 2 days", with the local time on hover.
+ *
+ * Past AND future: `expires_at` is a future instant, and the old version
+ * computed `now - then` for everything, so a proposal expiring in two days
+ * rendered as "just now".
+ */
+/**
+ * One clock, shared by every relative timestamp on the page.
+ *
+ * Reading `Date.now()` during render is impure, and a component that reads
+ * it once goes stale on a screen left open. `useSyncExternalStore` is the
+ * supported way to read a changing external value — and a single module-level
+ * timer serves every `TimeAgo` at once, rather than one timer each.
+ */
+const clockListeners = new Set<() => void>();
+let clockNow = 0;
+let clockTimer: number | null = null;
+
+function subscribeToClock(onChange: () => void): () => void {
+  clockListeners.add(onChange);
+  if (clockTimer === null) {
+    clockNow = Date.now();
+    clockTimer = window.setInterval(() => {
+      clockNow = Date.now();
+      clockListeners.forEach((listener) => listener());
+    }, 60_000);
+  }
+  return () => {
+    clockListeners.delete(onChange);
+    if (clockListeners.size === 0 && clockTimer !== null) {
+      window.clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  };
+}
+
+function readClock(): number {
+  if (clockNow === 0) clockNow = Date.now();
+  return clockNow;
+}
+
+/** The server has no clock to agree on, so it renders the absolute time. */
+function readClockOnServer(): number {
+  return 0;
+}
+
 export function TimeAgo({ at, fallback = "Never" }: { at?: string | null; fallback?: string }) {
-  if (!at) return <span className="text-faint">{fallback}</span>;
-  const ms = Date.now() - Date.parse(at);
-  if (Number.isNaN(ms)) return <span className="text-faint">{fallback}</span>;
-  const mins = Math.round(ms / 60_000);
-  const text =
-    mins < 1 ? "just now"
-    : mins < 60 ? `${mins} min ago`
-    : mins < 1440 ? `${Math.round(mins / 60)} h ago`
-    : `${Math.round(mins / 1440)} d ago`;
-  return <span title={new Date(at).toLocaleString()}>{text}</span>;
+  const now = useSyncExternalStore(subscribeToClock, readClock, readClockOnServer);
+
+  const date = parseInstant(at);
+  if (!date) return <span className="text-faint">{fallback}</span>;
+  // Server-rendered: show the absolute local time rather than a relative one
+  // computed against a clock the server does not share.
+  if (!now) return <span title={localTime(at)}>{localTime(at)}</span>;
+
+  const deltaMs = date.getTime() - now;
+  const future = deltaMs > 0;
+  const mins = Math.round(Math.abs(deltaMs) / 60_000);
+  const amount =
+    mins < 1 ? "" 
+    : mins < 60 ? `${mins} min`
+    : mins < 1440 ? `${Math.round(mins / 60)} h`
+    : `${Math.round(mins / 1440)} d`;
+  const text = !amount
+    ? (future ? "any moment" : "just now")
+    : future ? `in ${amount}` : `${amount} ago`;
+
+  return <span title={localTime(at)}>{text}</span>;
 }
 
 export function BrandTabs({
